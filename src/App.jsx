@@ -5,8 +5,11 @@ import { loadInitial, persist, subscribe } from "./sync";
 export default function App() {
   const [initialState, setInitialState] = useState(null);
   const [loading, setLoading] = useState(true);
-  // Lets realtime updates from other devices push a fresh state into the component.
+  // Realtime updates from other devices. We bump `remoteRev` only when a genuinely
+  // new remote state arrives, and use it as the remount key — so the app does NOT
+  // remount on every render (which was wiping transient UI like toasts/open forms).
   const [remoteState, setRemoteState] = useState(null);
+  const [remoteRev, setRemoteRev] = useState(0);
   const lastLocalWrite = useRef(0);
 
   useEffect(() => {
@@ -21,9 +24,10 @@ export default function App() {
 
   useEffect(() => {
     const unsub = subscribe((next) => {
-      // Ignore echoes of our own very recent writes to avoid cursor jumps.
-      if (Date.now() - lastLocalWrite.current < 1200) return;
+      // Ignore echoes of our own recent writes to avoid clobbering local edits.
+      if (Date.now() - lastLocalWrite.current < 2000) return;
       setRemoteState(next);
+      setRemoteRev((r) => r + 1);
     });
     return unsub;
   }, []);
@@ -45,12 +49,13 @@ export default function App() {
     );
   }
 
-  // `key` forces a remount when a realtime update arrives so the component re-seeds
-  // from the new shared state. Simple + safe for this whole-document sync model.
+  // Stable key: only changes when a real remote update lands (remoteRev increments),
+  // NOT on every render. This preserves toasts, open sheets and scroll position during
+  // normal local use.
   return (
     <TreemanApp
-      key={remoteState ? "remote-" + Date.now() : "local"}
-      initialState={remoteState || initialState}
+      key={"rev-" + remoteRev}
+      initialState={remoteRev > 0 ? remoteState : initialState}
       onPersist={onPersist}
     />
   );
