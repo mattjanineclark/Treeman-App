@@ -511,8 +511,8 @@ const styles = `
 .tm-root.dark .tm-quote-totals-row.grand { color: var(--lime); }
 
 /* ── toast ── */
-.tm-toast { position: fixed; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(90px); background: var(--green-deep); color: var(--lime-hi); padding: 13px 22px; border-radius: 30px; font-size: 13px; font-weight: 700; z-index: 300; transition: transform .28s; white-space: nowrap; box-shadow: 0 6px 20px var(--shadow-lg); pointer-events: none; }
-.tm-toast.show { transform: translateX(-50%) translateY(0); }
+.tm-toast { position: fixed; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(24px); opacity: 0; background: var(--green-deep); color: var(--lime-hi); padding: 13px 22px; border-radius: 30px; font-size: 13px; font-weight: 700; z-index: 300; transition: transform .28s, opacity .28s; white-space: nowrap; box-shadow: 0 6px 20px var(--shadow-lg); pointer-events: none; visibility: hidden; }
+.tm-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
 
 /* confirm dialog */
 .tm-confirm { background: var(--sheet-bg); border-radius: 22px; padding: 24px 22px 20px; width: 100%; max-width: 360px; margin: 20px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.35); border: 1px solid var(--border); animation: tm-pop .2s cubic-bezier(0.32,0.72,0.22,1); }
@@ -748,6 +748,7 @@ export default function TreemanApp({ initialState, onPersist }) {
   const [activeJobId, setActiveJobId] = useState(null);
   const [toastMsg, setToastMsg] = useState("");
   const [toastShow, setToastShow] = useState(false);
+  const [toastToken, setToastToken] = useState(0); // bumps on each toast() call
   const [clock, setClock] = useState("");
   const [fabAction, setFabAction] = useState(null); // set by panels
   const [confirmData, setConfirmData] = useState(null); // in-app confirm dialog
@@ -761,13 +762,19 @@ export default function TreemanApp({ initialState, onPersist }) {
     return () => clearInterval(id);
   }, []);
 
-  const toastTimer = useRef(null);
   const toast = useCallback((msg) => {
     setToastMsg(msg);
     setToastShow(true);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastShow(false), 2600);
+    setToastToken((t) => t + 1); // restart the auto-dismiss timer below
   }, []);
+
+  // Auto-dismiss: re-runs whenever a new toast fires (token changes). The cleanup
+  // clears the previous timer, so this is immune to re-renders and rapid toasts.
+  useEffect(() => {
+    if (!toastShow) return;
+    const id = setTimeout(() => setToastShow(false), 2600);
+    return () => clearTimeout(id);
+  }, [toastToken, toastShow]);
 
   // Ask for confirmation via the in-app dialog. Pass { title, message, danger, confirmLabel, onYes }.
   const confirm = useCallback((opts) => setConfirmData(opts), []);
