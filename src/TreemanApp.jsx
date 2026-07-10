@@ -817,7 +817,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v13</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v14</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
@@ -983,7 +983,7 @@ function DashboardPanel({ state, goTab, openJob }) {
 // ══════════════════════════════════════════════════════════════
 //  JOBS PANEL — the hub. Everything is created and lives inside a job.
 // ══════════════════════════════════════════════════════════════
-function JobPill({ icon, title, count, open, onToggle, onAdd, addLabel, children }) {
+function JobPill({ icon, title, count, open, onToggle, onAdd, addLabel, noAdd, children }) {
   return (
     <div className={"tm-jobpill" + (open ? " open" : "")}>
       <div className="tm-jobpill-head" onClick={onToggle}>
@@ -992,7 +992,7 @@ function JobPill({ icon, title, count, open, onToggle, onAdd, addLabel, children
           <div className="tm-jobpill-title">{title}</div>
           <div className="tm-jobpill-count">{count}</div>
         </div>
-        <button className="tm-jobpill-add" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={addLabel || ("Add " + title)}>+</button>
+        {!noAdd && <button className="tm-jobpill-add" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={addLabel || ("Add " + title)}>+</button>}
         <span className="tm-jobpill-chev">›</span>
       </div>
       {open && <div className="tm-jobpill-body">{children}</div>}
@@ -1752,9 +1752,9 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
   const [jobType, setJobType] = useState(job?.jobType || "");
   const [lead, setLead] = useState("");
   const [checked, setChecked] = useState([]);
+  const [hazardDetails, setHazardDetails] = useState({}); // { [hazardName]: { control, notes } }
   const [otherHazards, setOtherHazards] = useState("");
   const [risk, setRisk] = useState("");
-  const [controls, setControls] = useState("");
   // Pre-seed signers from the job's assigned crew so they can sign on the spot
   const [signers, setSigners] = useState(() => (job?.crewIds || []).map((id) => {
     const c = findCrew(state, id);
@@ -1762,6 +1762,7 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
   }));
 
   const toggleHazard = (h) => setChecked((c) => c.includes(h) ? c.filter((x) => x !== h) : [...c, h]);
+  const setDetail = (h, patch) => setHazardDetails((d) => ({ ...d, [h]: { ...(d[h] || {}), ...patch } }));
   const addSigner = () => setSigners((s) => [...s, { name: "", role: "", signed: false }]);
   const updateSigner = (i, patch) => setSigners((s) => s.map((sg, idx) => idx === i ? { ...sg, ...patch } : sg));
   const removeSigner = (i) => setSigners((s) => s.filter((_, idx) => idx !== i));
@@ -1769,9 +1770,12 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
   const save = () => {
     if (!site.trim()) { toast("⚠️ Enter a site address"); return; }
     if (!risk) { toast("⚠️ Select a risk level"); return; }
+    // keep only details for currently-ticked hazards
+    const details = {};
+    checked.forEach((h) => { details[h] = hazardDetails[h] || { control: "", notes: "" }; });
     const record = {
       id: uid(), ts: Date.now(), jobId, site, date, jobType, lead,
-      hazards: checked, otherHazards, risk, controls,
+      hazards: checked, hazardDetails: details, otherHazards, risk,
       signers: signers.map((s) => ({ name: s.name, role: s.role, signed: s.signed })),
       status: "open",
     };
@@ -1790,16 +1794,29 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Identified Hazards</div>
-      <div className="tm-checkbox-grid">
-        {state.settings.hazardTypes.map((h) => (
-          <div key={h} className={"tm-chk-item" + (checked.includes(h) ? " checked" : "")} onClick={() => toggleHazard(h)}>
-            <div className="tm-chk-box">{checked.includes(h) ? "✓" : ""}</div>
-            <span>{h}</span>
+      <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 10 }}>Tick each hazard present, then add the control measure and any notes for it.</p>
+      {state.settings.hazardTypes.map((h) => {
+        const on = checked.includes(h);
+        const d = hazardDetails[h] || {};
+        return (
+          <div key={h} className={"tm-jobpill" + (on ? " open" : "")} style={{ marginBottom: 8 }}>
+            <div className="tm-jobpill-head" onClick={() => toggleHazard(h)}>
+              <div className={"tm-chk-box" + (on ? " tm-chk-on" : "")} style={on ? { borderColor: "var(--green-mid)", background: "var(--green-mid)", color: "#fff" } : {}}>{on ? "✓" : ""}</div>
+              <div style={{ flex: 1 }}><div className="tm-jobpill-title" style={{ fontSize: 14 }}>{h}</div></div>
+            </div>
+            {on && (
+              <div className="tm-jobpill-body" style={{ paddingTop: 10 }}>
+                <label className="tm-label">Control Measure</label>
+                <textarea className="tm-textarea" style={{ minHeight: 60 }} value={d.control || ""} onChange={(e) => setDetail(h, { control: e.target.value })} placeholder="How is this hazard controlled? PPE, exclusion zone, method..." />
+                <label className="tm-label">Notes</label>
+                <textarea className="tm-textarea" style={{ minHeight: 50 }} value={d.notes || ""} onChange={(e) => setDetail(h, { notes: e.target.value })} placeholder="Anything specific to today / this site..." />
+              </div>
+            )}
           </div>
-        ))}
-      </div>
-      <label className="tm-label">Other Hazards</label>
-      <textarea className="tm-textarea" value={otherHazards} onChange={(e) => setOtherHazards(e.target.value)} placeholder="Any additional hazards..." />
+        );
+      })}
+      <label className="tm-label" style={{ marginTop: 10 }}>Other Hazards</label>
+      <textarea className="tm-textarea" value={otherHazards} onChange={(e) => setOtherHazards(e.target.value)} placeholder="Any additional hazards not listed above..." />
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Overall Risk Level</div>
@@ -1808,8 +1825,6 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
         <div className={"tm-hl-btn med" + (risk === "med" ? " sel" : "")} onClick={() => setRisk("med")}>🟡 Med</div>
         <div className={"tm-hl-btn high" + (risk === "high" ? " sel" : "")} onClick={() => setRisk("high")}>🔴 High</div>
       </div>
-      <label className="tm-label">Control Measures / Actions</label>
-      <textarea className="tm-textarea" value={controls} onChange={(e) => setControls(e.target.value)} placeholder="PPE required, exclusion zones, rigging plan, comms..." />
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Team Sign-Off</div>
@@ -1849,19 +1864,83 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
 }
 
 function HazardView({ state, rec, onClose, onDelete }) {
+  const riskLabel = rec.risk === "high" ? "🔴 High" : rec.risk === "med" ? "🟡 Medium" : "🟢 Low";
+  const details = rec.hazardDetails || {};
+  const company = state.settings.companyInfo || {};
+
+  const printSheet = () => {
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    const rows = (rec.hazards || []).map((h) => {
+      const d = details[h] || {};
+      return `<tr><td class="hz">${esc(h)}</td><td>${esc(d.control) || "—"}</td><td>${esc(d.notes) || ""}</td></tr>`;
+    }).join("");
+    const signers = (rec.signers || []).map((s) =>
+      `<div class="sig"><span>${esc(s.name)} <em>(${esc(s.role) || "Crew"})</em></span><span>${s.signed ? "Signed ✔" : "________________"}</span></div>`
+    ).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Hazard Sheet</title>
+<style>
+  * { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 24px; color: #14210a; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: #555; font-size: 12px; margin-bottom: 14px; }
+  .meta { font-size: 13px; margin-bottom: 14px; line-height: 1.6; }
+  .meta b { display: inline-block; min-width: 90px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { border: 1px solid #bbb; padding: 7px 9px; font-size: 12px; text-align: left; vertical-align: top; }
+  th { background: #e8f0dc; }
+  td.hz { font-weight: bold; width: 30%; }
+  .risk { display: inline-block; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px; }
+  h2 { font-size: 14px; margin: 20px 0 6px; border-bottom: 2px solid #8DC63F; padding-bottom: 3px; }
+  .sig { display: flex; justify-content: space-between; padding: 9px 2px; border-bottom: 1px dashed #ccc; font-size: 13px; }
+  .foot { margin-top: 26px; font-size: 10px; color: #888; text-align: center; }
+</style></head><body>
+  <h1>${esc(company.name || "The Treeman")} — Site Hazard Sheet</h1>
+  <div class="sub">${esc(company.phone || "")} ${company.email ? " · " + esc(company.email) : ""}</div>
+  <div class="meta">
+    <div><b>Site:</b> ${esc(rec.site) || "—"}</div>
+    <div><b>Date:</b> ${esc(rec.date) || "—"}</div>
+    <div><b>Job type:</b> ${esc(rec.jobType) || "—"}</div>
+    <div><b>Team lead:</b> ${esc(rec.lead) || "—"}</div>
+    <div><b>Overall risk:</b> ${esc(riskLabel)}</div>
+  </div>
+  <h2>Identified Hazards &amp; Controls</h2>
+  <table><thead><tr><th>Hazard</th><th>Control measure</th><th>Notes</th></tr></thead>
+  <tbody>${rows || '<tr><td colspan="3">No hazards ticked</td></tr>'}</tbody></table>
+  ${rec.otherHazards ? `<p style="font-size:12px;margin-top:10px"><b>Other hazards:</b> ${esc(rec.otherHazards)}</p>` : ""}
+  <h2>Team Sign-Off</h2>
+  ${signers || '<p style="font-size:12px">No crew recorded</p>'}
+  <div class="foot">Generated by The Treeman Field Ops · ${new Date().toLocaleString("en-NZ")}</div>
+  <script>window.onload = function(){ window.print(); }</script>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { alert("Please allow pop-ups to print the hazard sheet."); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
   return (
     <Sheet open onClose={onClose} title={"⚠️ " + (rec.site || "Hazard sheet")}>
       <div style={{ fontSize: 14, lineHeight: 1.7 }}>
         <p><b>Date:</b> {rec.date} · <b>Job type:</b> {rec.jobType || "—"}</p>
-        <p><b>Lead:</b> {rec.lead || "—"} · <b>Risk:</b> {rec.risk === "high" ? "🔴 High" : rec.risk === "med" ? "🟡 Medium" : "🟢 Low"}</p>
-        <p style={{ marginTop: 10 }}><b>Hazards:</b></p>
-        <ul style={{ paddingLeft: 20 }}>{rec.hazards.map((h, i) => <li key={i}>{h}</li>)}</ul>
-        {rec.otherHazards && <p><b>Other:</b> {rec.otherHazards}</p>}
-        <p style={{ marginTop: 10 }}><b>Controls:</b> {rec.controls || "—"}</p>
+        <p><b>Lead:</b> {rec.lead || "—"} · <b>Risk:</b> {riskLabel}</p>
+        <p style={{ marginTop: 10 }}><b>Hazards &amp; controls:</b></p>
+        {!rec.hazards.length ? <p className="tm-text-mid">None recorded.</p> : rec.hazards.map((h, i) => {
+          const d = details[h] || {};
+          return (
+            <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", marginBottom: 8 }}>
+              <div style={{ fontWeight: 700 }}>⚠️ {h}</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}><b>Control:</b> {d.control || "—"}</div>
+              {d.notes && <div style={{ fontSize: 13, marginTop: 2 }}><b>Notes:</b> {d.notes}</div>}
+            </div>
+          );
+        })}
+        {/* Back-compat: older sheets stored a single controls field */}
+        {rec.controls && <p style={{ marginTop: 6 }}><b>Controls:</b> {rec.controls}</p>}
+        {rec.otherHazards && <p style={{ marginTop: 6 }}><b>Other:</b> {rec.otherHazards}</p>}
         <p style={{ marginTop: 10 }}><b>Sign-off:</b></p>
         <ul style={{ paddingLeft: 20 }}>{rec.signers.map((s, i) => <li key={i}>{s.name} ({s.role || "Crew"}) — {s.signed ? "SIGNED ✅" : "NOT SIGNED"}</li>)}</ul>
       </div>
-      <div className="tm-sheet-actions">
+      <div className="tm-sheet-actions" style={{ flexWrap: "wrap" }}>
+        <button className="tm-btn tm-btn-primary" onClick={printSheet}>🖨️ Print / PDF</button>
         <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
       </div>
@@ -1938,8 +2017,7 @@ function GearPanel({ state, setState, toast, setFabAction }) {
       </div>
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="🧤 Log PPE / Gear Use">
-        <label className="tm-label">Crew Member</label>
-        <input className="tm-input" value={crew} onChange={(e) => setCrew(e.target.value)} placeholder="Name" />
+        <PeoplePicker state={state} value={crew} onChange={setCrew} single label="Crew Member" placeholder="Crew member name…" />
         <label className="tm-label">Date</label>
         <input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <div className="tm-section-head" style={{ marginTop: 6 }}>Items Used Today</div>
@@ -1965,8 +2043,9 @@ function GearPanel({ state, setState, toast, setFabAction }) {
 // ══════════════════════════════════════════════════════════════
 //  MAINTENANCE PANEL
 // ══════════════════════════════════════════════════════════════
-function MaintenancePanel({ state, setState, toast, setFabAction }) {
+function MaintenancePanel({ state, setState, toast, confirm, setFabAction }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [equip, setEquip] = useState("");
   const [date, setDate] = useState(today);
   const [by, setBy] = useState("");
@@ -1975,9 +2054,17 @@ function MaintenancePanel({ state, setState, toast, setFabAction }) {
   const [status, setStatus] = useState("good");
 
   const openLog = useCallback(() => {
+    setEditId(null);
     setEquip(""); setDate(today()); setBy(""); setWork(""); setNextDue(""); setStatus("good");
     setSheetOpen(true);
   }, []);
+
+  const openEdit = (m) => {
+    setEditId(m.id || m.ts);
+    setEquip(m.equip || ""); setDate(m.date || today()); setBy(m.by || "");
+    setWork(m.work || ""); setNextDue(m.nextDue || ""); setStatus(m.status || "good");
+    setSheetOpen(true);
+  };
 
   useEffect(() => {
     setFabAction({ label: "Log maintenance", onClick: openLog });
@@ -1986,9 +2073,25 @@ function MaintenancePanel({ state, setState, toast, setFabAction }) {
 
   const save = () => {
     if (!equip) { toast("⚠️ Select equipment"); return; }
-    setState((st) => ({ ...st, maintenance: [{ ts: Date.now(), equip, date, by, work, nextDue, status }, ...st.maintenance] }));
+    if (editId) {
+      setState((st) => ({ ...st, maintenance: st.maintenance.map((m) => (m.id || m.ts) === editId ? { ...m, equip, date, by, work, nextDue, status } : m) }));
+      toast("✅ Maintenance updated");
+    } else {
+      setState((st) => ({ ...st, maintenance: [{ id: uid(), ts: Date.now(), equip, date, by, work, nextDue, status }, ...st.maintenance] }));
+      toast("✅ Maintenance logged");
+    }
     setSheetOpen(false);
-    toast("✅ Maintenance logged");
+  };
+
+  const remove = () => {
+    confirm({
+      title: "Delete this maintenance log?", danger: true, confirmLabel: "Delete",
+      onYes: () => {
+        setState((st) => ({ ...st, maintenance: st.maintenance.filter((m) => (m.id || m.ts) !== editId) }));
+        setSheetOpen(false);
+        toast("Maintenance log deleted");
+      },
+    });
   };
 
   return (
@@ -2027,7 +2130,7 @@ function MaintenancePanel({ state, setState, toast, setFabAction }) {
         {!state.maintenance.length
           ? <p className="tm-text-mid">No maintenance logged yet. Tap + to log a service.</p>
           : state.maintenance.map((m, i) => (
-            <div className="tm-record-item" key={i}>
+            <div className="tm-record-item" key={m.id || i} onClick={() => openEdit(m)} style={{ cursor: "pointer" }}>
               <div className="tm-record-icon">🔧</div>
               <div className="tm-record-body">
                 <div className="tm-record-title">{m.equip}</div>
@@ -2041,7 +2144,7 @@ function MaintenancePanel({ state, setState, toast, setFabAction }) {
           ))}
       </div>
 
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="🔧 Log Maintenance">
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editId ? "🔧 Edit Maintenance" : "🔧 Log Maintenance"}>
         <label className="tm-label">Equipment</label>
         <select className="tm-select" value={equip} onChange={(e) => setEquip(e.target.value)}>
           <option value="">Select...</option>
@@ -2051,8 +2154,7 @@ function MaintenancePanel({ state, setState, toast, setFabAction }) {
           <div><label className="tm-label">Date Serviced</label><input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
           <div><label className="tm-label">Next Due</label><input className="tm-input" type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} /></div>
         </div>
-        <label className="tm-label">Serviced By</label>
-        <input className="tm-input" value={by} onChange={(e) => setBy(e.target.value)} placeholder="Name" />
+        <PeoplePicker state={state} value={by} onChange={setBy} single label="Serviced By" placeholder="Name…" />
         <label className="tm-label">Work Performed</label>
         <textarea className="tm-textarea" value={work} onChange={(e) => setWork(e.target.value)} placeholder="Inspected / repaired / replaced..." />
         <label className="tm-label">Status After Service</label>
@@ -2062,8 +2164,9 @@ function MaintenancePanel({ state, setState, toast, setFabAction }) {
           <option value="out">🔴 Out of service — do not use</option>
         </select>
         <div className="tm-sheet-actions">
+          {editId && <button className="tm-btn tm-btn-danger" onClick={remove}>Delete</button>}
           <button className="tm-btn tm-btn-outline" onClick={() => setSheetOpen(false)}>Cancel</button>
-          <button className="tm-btn tm-btn-primary" onClick={save}>Save</button>
+          <button className="tm-btn tm-btn-primary" onClick={save}>{editId ? "Save Changes" : "Save"}</button>
         </div>
       </Sheet>
     </div>
@@ -2077,6 +2180,7 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [detailId, setDetailId] = useState(null); // crew detail view
+  const [crewSection, setCrewSection] = useState(null); // collapsible section in detail
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [role, setRole] = useState("Arborist");
@@ -2131,18 +2235,30 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
     });
   };
 
-  // ── Crew detail: job history ──
+  // ── Crew detail: collapsible sections ──
   const detail = findCrew(state, detailId);
   if (detail) {
+    const fullName = crewName(detail);
+    const nameMatch = (v) => {
+      if (!v) return false;
+      if (Array.isArray(v)) return v.some((n) => (n || "").toLowerCase() === fullName.toLowerCase());
+      return (v || "").toLowerCase() === fullName.toLowerCase();
+    };
     const myJobs = jobsForCrew(state, detail.id).sort((a, b) => b.ts - a.ts);
+    const myIncidents = state.incidents
+      .filter((x) => nameMatch(x.peopleInvolved ?? x.personInvolved) || nameMatch(x.reportedBy) || nameMatch(x.witnesses))
+      .sort((a, b) => b.ts - a.ts);
+    const myMaint = state.maintenance.filter((m) => nameMatch(m.by)).sort((a, b) => b.ts - a.ts);
+    const myGear = state.gearLog.filter((g) => nameMatch(g.crew)).sort((a, b) => b.ts - a.ts);
+
     return (
       <div className="tm-panel">
         <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => setDetailId(null)} style={{ marginBottom: 14 }}>‹ All Crew</button>
         <div className="tm-card">
           <div className="tm-flex" style={{ gap: 14 }}>
-            <div className="tm-crew-avatar" style={{ width: 56, height: 56, fontSize: 22 }}>{initials(crewName(detail))}</div>
+            <div className="tm-crew-avatar" style={{ width: 56, height: 56, fontSize: 22 }}>{initials(fullName)}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>{crewName(detail)}</div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>{fullName}</div>
               <div className="tm-text-mid">{detail.role}</div>
             </div>
           </div>
@@ -2156,9 +2272,9 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
           </div>
         </div>
 
-        <div className="tm-card">
-          <div className="tm-card-title"><span>🌲</span> Jobs Involved In ({myJobs.length})</div>
-          {!myJobs.length ? <p className="tm-text-mid">Not assigned to any jobs yet.</p> : myJobs.map((j) => {
+        <JobPill icon="🌲" title="Jobs" count={myJobs.length + " job" + (myJobs.length === 1 ? "" : "s")}
+          open={crewSection === "jobs"} onToggle={() => setCrewSection(crewSection === "jobs" ? null : "jobs")} noAdd>
+          {!myJobs.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>Not assigned to any jobs yet.</p> : myJobs.map((j) => {
             const sm = statusMeta(j.status);
             return (
               <div className="tm-record-item" key={j.id} onClick={() => openJob(j.id)} style={{ cursor: "pointer" }}>
@@ -2172,7 +2288,51 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
               </div>
             );
           })}
-        </div>
+        </JobPill>
+
+        <JobPill icon="🚨" title="Incidents" count={myIncidents.length ? myIncidents.length + " involved" : "None 🌿"}
+          open={crewSection === "incidents"} onToggle={() => setCrewSection(crewSection === "incidents" ? null : "incidents")} noAdd>
+          {!myIncidents.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No incidents involving {fullName.split(" ")[0]}.</p> : myIncidents.map((x) => {
+            const job = findJob(state, x.jobId);
+            const sb = x.severity === "high" ? "tm-badge-red" : x.severity === "med" ? "tm-badge-amber" : "tm-badge-green";
+            return (
+              <div className="tm-record-item" key={x.id} onClick={() => x.jobId && openJob(x.jobId)} style={{ cursor: x.jobId ? "pointer" : "default" }}>
+                <div className="tm-record-icon">🚨</div>
+                <div className="tm-record-body">
+                  <div className="tm-record-title">{x.type}</div>
+                  <div className="tm-record-meta">{x.date} · {job ? jobLabel(job) : "No job"}</div>
+                  <div style={{ marginTop: 5 }}><span className={"tm-badge " + sb}>{x.severity === "high" ? "🔴 Serious" : x.severity === "med" ? "🟡 Moderate" : "🟢 Minor"}</span></div>
+                </div>
+              </div>
+            );
+          })}
+        </JobPill>
+
+        <JobPill icon="🔧" title="Maintenance" count={myMaint.length ? myMaint.length + " log" + (myMaint.length === 1 ? "" : "s") : "None"}
+          open={crewSection === "maint"} onToggle={() => setCrewSection(crewSection === "maint" ? null : "maint")} noAdd>
+          {!myMaint.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No maintenance logged by {fullName.split(" ")[0]}.</p> : myMaint.map((m, i) => (
+            <div className="tm-record-item" key={m.ts + "-" + i}>
+              <div className="tm-record-icon">🔧</div>
+              <div className="tm-record-body">
+                <div className="tm-record-title">{m.equip}</div>
+                <div className="tm-record-meta">{m.date}{m.work ? " · " + m.work : ""}</div>
+              </div>
+            </div>
+          ))}
+        </JobPill>
+
+        <JobPill icon="🧤" title="PPE / Gear" count={myGear.length ? myGear.length + " log" + (myGear.length === 1 ? "" : "s") : "None"}
+          open={crewSection === "gear"} onToggle={() => setCrewSection(crewSection === "gear" ? null : "gear")} noAdd>
+          {!myGear.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No PPE logged for {fullName.split(" ")[0]}.</p> : myGear.map((g, i) => (
+            <div className="tm-record-item" key={g.ts + "-" + i}>
+              <div className="tm-record-icon">🧤</div>
+              <div className="tm-record-body">
+                <div className="tm-record-title">{(g.items || []).join(", ") || "Gear check"}</div>
+                <div className="tm-record-meta">{g.date}{g.notes ? " · " + g.notes : ""}</div>
+              </div>
+            </div>
+          ))}
+        </JobPill>
 
         <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? "👷 Edit Crew Member" : "👷 Add Crew Member"}>
           <CrewFormFields {...{ first, setFirst, last, setLast, role, setRole, quals, setQuals, emerg, setEmerg, save, onClose: () => setSheetOpen(false), editingId }} />
@@ -2245,23 +2405,26 @@ function ToolboxPanel({ state, setState, toast, setFabAction }) {
   const [currentTalk, setCurrentTalk] = useState(null);
   const [date, setDate] = useState(today);
   const [presenter, setPresenter] = useState("");
-  const [attendees, setAttendees] = useState("");
+  const [attendees, setAttendees] = useState([]);
   const [notes, setNotes] = useState("");
 
   useEffect(() => { setFabAction(null); return () => setFabAction(null); }, [setFabAction]);
 
   const startTalk = (t) => {
     setCurrentTalk(t);
-    setDate(today()); setPresenter(""); setAttendees(""); setNotes("");
+    setDate(today()); setPresenter(""); setAttendees([]); setNotes("");
     setSheetOpen(true);
   };
 
   const save = () => {
-    if (!attendees.trim()) { toast("⚠️ Enter attendees"); return; }
+    if (!attendees.length) { toast("⚠️ Add at least one attendee"); return; }
     setState((st) => ({ ...st, talks: [{ ts: Date.now(), title: currentTalk.title, date, presenter, attendees, notes }, ...st.talks] }));
     setSheetOpen(false);
     toast("✅ Toolbox talk recorded");
   };
+
+  // Attendees may be an array (new) or a comma string (old records).
+  const attendeesText = (a) => Array.isArray(a) ? a.join(", ") : (a || "");
 
   return (
     <div className="tm-panel">
@@ -2293,7 +2456,7 @@ function ToolboxPanel({ state, setState, toast, setFabAction }) {
               <div className="tm-record-body">
                 <div className="tm-record-title">{t.title}</div>
                 <div className="tm-record-meta">{t.date} · Presenter: {t.presenter || "—"}</div>
-                <div className="tm-record-meta" style={{ marginTop: 2 }}>Attendees: {t.attendees}</div>
+                <div className="tm-record-meta" style={{ marginTop: 2 }}>Attendees: {attendeesText(t.attendees)}</div>
               </div>
             </div>
           ))}
@@ -2307,12 +2470,10 @@ function ToolboxPanel({ state, setState, toast, setFabAction }) {
             ))}
           </div>
         )}
-        <div className="tm-row">
-          <div><label className="tm-label">Date</label><input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div><label className="tm-label">Presenter</label><input className="tm-input" value={presenter} onChange={(e) => setPresenter(e.target.value)} placeholder="Name" /></div>
-        </div>
-        <label className="tm-label">Attendees (comma separated)</label>
-        <textarea className="tm-textarea" value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Dave, Brody, Vince, Troy..." />
+        <label className="tm-label">Date</label>
+        <input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <PeoplePicker state={state} value={presenter} onChange={setPresenter} single label="Presenter" placeholder="Presenter name…" />
+        <PeoplePicker state={state} value={attendees} onChange={setAttendees} label="Attendees" placeholder="Add attendee…" />
         <label className="tm-label">Notes / Discussion Points</label>
         <textarea className="tm-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Concerns raised on site..." />
         <div className="tm-sheet-actions">
