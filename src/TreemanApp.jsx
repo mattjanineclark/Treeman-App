@@ -413,6 +413,16 @@ const styles = `
 .tm-chk-box { width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 7px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .14s; }
 .tm-chk-item.checked .tm-chk-box { border-color: var(--green-mid); background: var(--green-mid); color: #fff; }
 
+/* selectable chips (people picker) */
+.tm-chip {
+  border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text-mid);
+  border-radius: 20px; padding: 7px 13px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .14s; font-family: inherit;
+}
+.tm-chip:active { transform: scale(0.95); }
+.tm-chip.on { background: rgba(141,198,63,0.16); border-color: var(--lime); color: var(--green-mid); }
+.tm-root.dark .tm-chip.on { color: var(--lime); }
+
 /* ── records ── */
 .tm-record-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .tm-record-item:last-child { border-bottom: none; }
@@ -647,6 +657,81 @@ function ConfirmDialog({ data, onClose }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  PEOPLE PICKER — select one or more people from the crew list
+//  and/or add manual names. Value is an array of names (strings).
+//  Used anywhere names are captured (incident people, witnesses, etc).
+// ══════════════════════════════════════════════════════════════
+function PeoplePicker({ state, value, onChange, label, placeholder, single }) {
+  const names = single ? (value ? [value] : []) : (value || []);
+  const [manual, setManual] = useState("");
+
+  const has = (n) => names.some((x) => x.toLowerCase() === n.toLowerCase());
+  const emit = (next) => onChange(single ? (next[0] || "") : next);
+
+  const toggle = (n) => {
+    if (has(n)) emit(names.filter((x) => x.toLowerCase() !== n.toLowerCase()));
+    else emit(single ? [n] : [...names, n]);
+  };
+  const addManual = () => {
+    const n = manual.trim();
+    if (!n) return;
+    if (!has(n)) emit(single ? [n] : [...names, n]);
+    setManual("");
+  };
+  const removeName = (n) => emit(names.filter((x) => x !== n));
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      {label && <label className="tm-label">{label}</label>}
+
+      {/* selected chips */}
+      {!!names.length && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {names.map((n) => (
+            <span key={n} className="tm-badge tm-badge-green" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px" }}>
+              {n}
+              <span onClick={() => removeName(n)} style={{ cursor: "pointer", fontWeight: 800 }}>✕</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* crew quick-pick */}
+      {!!state.crew.length && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {state.crew.map((c) => {
+            const n = crewName(c);
+            const on = has(n);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => toggle(n)}
+                className={"tm-chip" + (on ? " on" : "")}
+              >
+                {on ? "✓ " : "+ "}{n}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* manual entry */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          className="tm-input" style={{ marginBottom: 0 }}
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addManual(); } }}
+          placeholder={placeholder || "Type a name…"}
+        />
+        <button type="button" className="tm-btn tm-btn-outline" style={{ flexShrink: 0 }} onClick={addManual}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 //  MAIN APP
 // ══════════════════════════════════════════════════════════════
 export default function TreemanApp({ initialState, onPersist }) {
@@ -676,9 +761,12 @@ export default function TreemanApp({ initialState, onPersist }) {
     return () => clearInterval(id);
   }, []);
 
+  const toastTimer = useRef(null);
   const toast = useCallback((msg) => {
-    setToastMsg(msg); setToastShow(true);
-    setTimeout(() => setToastShow(false), 2600);
+    setToastMsg(msg);
+    setToastShow(true);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastShow(false), 2600);
   }, []);
 
   // Ask for confirmation via the in-app dialog. Pass { title, message, danger, confirmLabel, onYes }.
@@ -822,9 +910,9 @@ function DashboardPanel({ state, goTab, openJob }) {
           <span style={{ fontSize: 22 }}>🚨</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{openIncidents} open incident{openIncidents > 1 ? "s" : ""}</div>
-            <div className="tm-text-mid" style={{ fontSize: 12 }}>Open the relevant job to review and follow up</div>
+            <div className="tm-text-mid" style={{ fontSize: 12 }}>Tap to review and follow up</div>
           </div>
-          <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => goTab("jobs")}>Jobs</button>
+          <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => goTab("incidents")}>Review</button>
         </div>
       )}
 
@@ -846,7 +934,7 @@ function DashboardPanel({ state, goTab, openJob }) {
           <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{openHazards}</div><div className="tm-bento-label">Open Hazards</div></div>
         </div>
 
-        <div className="tm-bento-tile" onClick={() => goTab("jobs")}>
+        <div className="tm-bento-tile" onClick={() => goTab("incidents")}>
           <span className="tm-bento-icon">🚨</span>
           <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{openIncidents}</div><div className="tm-bento-label">Incidents</div></div>
         </div>
@@ -913,6 +1001,7 @@ function JobsPanel({ state, setState, toast, confirm, setFabAction, activeJobId,
   // which add-form is open inside a job
   const [addForm, setAddForm] = useState(null); // 'quote' | 'hazard' | 'incident' | 'crew' | null
   const [viewRec, setViewRec] = useState(null);  // { kind, rec }
+  const [editIncident, setEditIncident] = useState(null);
   const [openSection, setOpenSection] = useState(null); // 'quotes'|'hazards'|'incidents'|'crew'
 
   // start-date prompt when scheduling
@@ -1168,10 +1257,16 @@ function JobsPanel({ state, setState, toast, confirm, setFabAction, activeJobId,
         {addForm === "incident" && <IncidentForm state={state} setState={setState} toast={toast} jobId={activeJob.id} job={activeJob} onClose={() => setAddForm(null)} onSaved={() => { setAddForm(null); setOpenSection("incidents"); }} />}
         {addForm === "crew" && <AssignCrewSheet state={state} job={activeJob} onClose={() => setAddForm(null)} onSave={(ids) => { setJobCrew(activeJob.id, ids); setAddForm(null); setOpenSection("crew"); toast("✅ Crew assigned"); }} />}
 
+        {/* Incident edit form (opened from the incident viewer) */}
+        {editIncident && <IncidentForm state={state} setState={setState} toast={toast} editing={editIncident} job={activeJob} onClose={() => setEditIncident(null)} onSaved={() => setEditIncident(null)} />}
+
         {/* Record viewers */}
         {viewRec && viewRec.kind === "quote" && <QuoteView state={state} setState={setState} rec={viewRec.rec} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("quote", viewRec.rec.id)} />}
         {viewRec && viewRec.kind === "hazard" && <HazardView state={state} rec={viewRec.rec} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("hazard", viewRec.rec.id)} />}
-        {viewRec && viewRec.kind === "incident" && <IncidentView state={state} setState={setState} rec={viewRec.rec} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("incident", viewRec.rec.id)} />}
+        {viewRec && viewRec.kind === "incident" && !editIncident && (() => {
+          const live = state.incidents.find((x) => x.id === viewRec.rec.id) || viewRec.rec;
+          return <IncidentView state={state} setState={setState} rec={live} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("incident", viewRec.rec.id)} onEdit={(r) => setEditIncident(r)} />;
+        })()}
 
         <JobSheet open={jobSheetOpen} onClose={() => setJobSheetOpen(false)} editing={editing} onSave={saveJob} />
 
@@ -1261,6 +1356,84 @@ function JobsPanel({ state, setState, toast, confirm, setFabAction, activeJobId,
 }
 
 /** Job create/edit bottom sheet (self-contained state) */
+/** Address field with free OpenStreetMap (Nominatim) autocomplete. No API key needed.
+ *  Biased to New Zealand. Falls back to a plain text field if the lookup fails/offline. */
+function AddressInput({ value, onChange, label, placeholder }) {
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const timer = useRef(null);
+  const boxRef = useRef(null);
+  const skipNext = useRef(false);
+
+  useEffect(() => {
+    if (skipNext.current) { skipNext.current = false; return; }
+    if (timer.current) clearTimeout(timer.current);
+    const q = (value || "").trim();
+    if (q.length < 4) { setResults([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      try {
+        setLoading(true);
+        const url = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=nz&limit=5&q=" + encodeURIComponent(q);
+        const res = await fetch(url, { headers: { "Accept-Language": "en-NZ" } });
+        const data = await res.json();
+        setResults(Array.isArray(data) ? data : []);
+        setOpen(true);
+      } catch (e) {
+        setResults([]); setOpen(false); // offline / blocked → silently behave as plain input
+      } finally {
+        setLoading(false);
+      }
+    }, 450); // debounce; Nominatim asks for <=1 req/sec
+    return () => { if (timer.current) clearTimeout(timer.current); };
+  }, [value]);
+
+  useEffect(() => {
+    const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const pick = (r) => {
+    skipNext.current = true; // don't re-search the value we just set
+    onChange(r.display_name);
+    setResults([]); setOpen(false);
+  };
+
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }} ref={boxRef}>
+      {label && <label className="tm-label">{label}</label>}
+      <input
+        className="tm-input" style={{ marginBottom: 0 }}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => { if (results.length) setOpen(true); }}
+        placeholder={placeholder || "Start typing an address…"}
+        autoComplete="off"
+      />
+      {loading && <div style={{ position: "absolute", right: 12, top: label ? 38 : 14, fontSize: 12, color: "var(--text-dim)" }}>…</div>}
+      {open && results.length > 0 && (
+        <div style={{
+          position: "absolute", zIndex: 50, left: 0, right: 0, top: "100%", marginTop: 4,
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
+          boxShadow: "0 8px 24px var(--shadow-lg)", overflow: "hidden",
+        }}>
+          {results.map((r) => (
+            <div
+              key={r.place_id}
+              onClick={() => pick(r)}
+              style={{ padding: "11px 13px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--border)", lineHeight: 1.4 }}
+            >
+              📍 {r.display_name}
+            </div>
+          ))}
+          <div style={{ padding: "7px 13px", fontSize: 10, color: "var(--text-dim)" }}>Address data © OpenStreetMap</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function JobSheet({ open, onClose, editing, onSave }) {
   const jobTypes = ["Tree Removal", "Crown Pruning", "Canopy Lift", "Hedge Trimming", "Palm Trimming / Removal", "Stump Grinding", "Emergency Response", "Arborist Report / Inspection", "Powerline Clearance", "Commercial", "Other"];
   const [name, setName] = useState("");
@@ -1289,8 +1462,7 @@ function JobSheet({ open, onClose, editing, onSave }) {
         <div><label className="tm-label">Client</label><input className="tm-input" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Client name" /></div>
         <div><label className="tm-label">Phone</label><input className="tm-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" /></div>
       </div>
-      <label className="tm-label">Site Address</label>
-      <input className="tm-input" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. 12 Smith Rd, Pukekohe" />
+      <AddressInput value={site} onChange={setSite} label="Site Address" placeholder="Start typing an address…" />
       <label className="tm-label">Job Type</label>
       <select className="tm-select" value={jobType} onChange={(e) => setJobType(e.target.value)}>
         <option value="">Select...</option>
@@ -1339,7 +1511,8 @@ function AssignCrewSheet({ state, job, onClose, onSave }) {
 // ══════════════════════════════════════════════════════════════
 function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
   const [addOpen, setAddOpen] = useState(false);
-  const [viewRec, setViewRec] = useState(null);
+  const [viewId, setViewId] = useState(null);
+  const [editRec, setEditRec] = useState(null);
   const [filter, setFilter] = useState("all"); // all | open | closed
 
   const openNew = useCallback(() => setAddOpen(true), []);
@@ -1353,7 +1526,7 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
       title: "Delete this incident?", danger: true, confirmLabel: "Delete",
       onYes: () => {
         setState((st) => ({ ...st, incidents: st.incidents.filter((r) => r.id !== id) }));
-        setViewRec(null);
+        setViewId(null);
         toast("Incident deleted");
       },
     });
@@ -1362,6 +1535,7 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
   const all = [...state.incidents].sort((a, b) => b.ts - a.ts);
   const list = all.filter((x) => filter === "all" ? true : filter === "open" ? x.status !== "closed" : x.status === "closed");
   const openCount = all.filter((x) => x.status !== "closed").length;
+  const viewRec = viewId ? state.incidents.find((x) => x.id === viewId) : null; // live record
 
   const sevBadge = (s) => s === "high" ? "tm-badge-red" : s === "med" ? "tm-badge-amber" : "tm-badge-green";
   const FILTERS = [
@@ -1391,7 +1565,7 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
           : list.map((x) => {
             const job = findJob(state, x.jobId);
             return (
-              <div className="tm-record-item" key={x.id} onClick={() => setViewRec(x)} style={{ cursor: "pointer" }}>
+              <div className="tm-record-item" key={x.id} onClick={() => setViewId(x.id)} style={{ cursor: "pointer" }}>
                 <div className="tm-record-icon">🚨</div>
                 <div className="tm-record-body">
                   <div className="tm-record-title">{x.type}</div>
@@ -1412,7 +1586,8 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
       </div>
 
       {addOpen && <IncidentForm state={state} setState={setState} toast={toast} jobId={null} job={null} onClose={() => setAddOpen(false)} onSaved={() => setAddOpen(false)} />}
-      {viewRec && <IncidentView state={state} setState={setState} rec={viewRec} onClose={() => setViewRec(null)} onDelete={() => deleteIncident(viewRec.id)} openJob={openJob} />}
+      {editRec && <IncidentForm state={state} setState={setState} toast={toast} editing={editRec} job={findJob(state, editRec.jobId)} onClose={() => setEditRec(null)} onSaved={() => setEditRec(null)} />}
+      {viewRec && !editRec && <IncidentView state={state} setState={setState} rec={viewRec} onClose={() => setViewId(null)} onDelete={() => deleteIncident(viewRec.id)} openJob={openJob} onEdit={(r) => setEditRec(r)} />}
     </div>
   );
 }
@@ -1420,37 +1595,46 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
 // ══════════════════════════════════════════════════════════════
 //  INCIDENT — form + view (used inside a Job, or standalone)
 // ══════════════════════════════════════════════════════════════
-function IncidentForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
-  const [type, setType] = useState("");
-  const [date, setDate] = useState(today);
-  const [time, setTime] = useState(() => new Date().toTimeString().slice(0, 5));
-  const [site, setSite] = useState(job?.site || "");
-  const [severity, setSeverity] = useState("");
-  const [personInvolved, setPersonInvolved] = useState("");
-  const [injuryDetails, setInjuryDetails] = useState("");
-  const [description, setDescription] = useState("");
-  const [immediateActions, setImmediateActions] = useState("");
-  const [witnesses, setWitnesses] = useState("");
-  const [notifiable, setNotifiable] = useState(false);
-  const [reportedBy, setReportedBy] = useState("");
-  const [signed, setSigned] = useState(false);
+function IncidentForm({ state, setState, toast, jobId, job, editing, onClose, onSaved }) {
+  const e0 = editing || {};
+  // Back-compat: old records stored people/witnesses as plain strings.
+  const toArr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+  const [type, setType] = useState(e0.type || "");
+  const [date, setDate] = useState(e0.date || today());
+  const [time, setTime] = useState(e0.time || new Date().toTimeString().slice(0, 5));
+  const [site, setSite] = useState(e0.site ?? (job?.site || ""));
+  const [severity, setSeverity] = useState(e0.severity || "");
+  const [peopleInvolved, setPeopleInvolved] = useState(toArr(e0.peopleInvolved ?? e0.personInvolved));
+  const [injuryDetails, setInjuryDetails] = useState(e0.injuryDetails || "");
+  const [description, setDescription] = useState(e0.description || "");
+  const [immediateActions, setImmediateActions] = useState(e0.immediateActions || "");
+  const [witnesses, setWitnesses] = useState(toArr(e0.witnesses));
+  const [notifiable, setNotifiable] = useState(!!e0.notifiable);
+  const [reportedBy, setReportedBy] = useState(e0.reportedBy || "");
+  const [signed, setSigned] = useState(!!e0.signed);
 
   const save = () => {
     if (!type) { toast("⚠️ Select an incident type"); return; }
     if (!severity) { toast("⚠️ Select a severity"); return; }
     if (!description.trim()) { toast("⚠️ Describe what happened"); return; }
-    const record = {
-      id: uid(), ts: Date.now(), jobId, type, date, time, site, severity,
-      personInvolved, injuryDetails, description, immediateActions, witnesses,
-      notifiable, reportedBy, signed, status: "open",
+    const fields = {
+      type, date, time, site, severity,
+      peopleInvolved, injuryDetails, description, immediateActions, witnesses,
+      notifiable, reportedBy, signed,
     };
-    setState((st) => ({ ...st, incidents: [record, ...st.incidents] }));
-    toast("✅ Incident reported");
+    if (editing) {
+      setState((st) => ({ ...st, incidents: st.incidents.map((x) => x.id === editing.id ? { ...x, ...fields } : x) }));
+      toast("✅ Incident updated");
+    } else {
+      const record = { id: uid(), ts: Date.now(), jobId: jobId ?? null, status: "open", ...fields };
+      setState((st) => ({ ...st, incidents: [record, ...st.incidents] }));
+      toast("✅ Incident reported");
+    }
     onSaved();
   };
 
   return (
-    <Sheet open onClose={onClose} title="🚨 Report Incident">
+    <Sheet open onClose={onClose} title={editing ? "🚨 Edit Incident" : "🚨 Report Incident"}>
       <label className="tm-label">Incident Type</label>
       <select className="tm-select" value={type} onChange={(e) => setType(e.target.value)}>
         <option value="">Select...</option>
@@ -1477,39 +1661,42 @@ function IncidentForm({ state, setState, toast, jobId, job, onClose, onSaved }) 
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Details</div>
-      <label className="tm-label">Person(s) Involved</label>
-      <input className="tm-input" value={personInvolved} onChange={(e) => setPersonInvolved(e.target.value)} placeholder="Name(s)" />
+      <PeoplePicker state={state} value={peopleInvolved} onChange={setPeopleInvolved} label="Person(s) Involved" placeholder="Add a name…" />
       <label className="tm-label">Injury Details (if any)</label>
       <textarea className="tm-textarea" value={injuryDetails} onChange={(e) => setInjuryDetails(e.target.value)} placeholder="Nature and location of injury, treatment given..." />
       <label className="tm-label">What Happened</label>
       <textarea className="tm-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Sequence of events, conditions, contributing factors..." />
       <label className="tm-label">Immediate Actions Taken</label>
       <textarea className="tm-textarea" value={immediateActions} onChange={(e) => setImmediateActions(e.target.value)} placeholder="First aid, made area safe, stopped work, called 111..." />
-      <label className="tm-label">Witnesses</label>
-      <input className="tm-input" value={witnesses} onChange={(e) => setWitnesses(e.target.value)} placeholder="Names of anyone who saw it" />
+      <PeoplePicker state={state} value={witnesses} onChange={setWitnesses} label="Witnesses" placeholder="Add a witness…" />
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Reported By</div>
-      <input className="tm-input" value={reportedBy} onChange={(e) => setReportedBy(e.target.value)} placeholder="Your name" />
+      <PeoplePicker state={state} value={reportedBy} onChange={setReportedBy} single placeholder="Your name…" />
       <label className="tm-label">Signature</label>
       <SignaturePad signed={signed} onSign={(data) => setSigned(!!data)} />
 
       <div className="tm-sheet-actions">
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Cancel</button>
-        <button className="tm-btn tm-btn-primary" onClick={save}>✅ Submit Report</button>
+        <button className="tm-btn tm-btn-primary" onClick={save}>{editing ? "Save Changes" : "✅ Submit Report"}</button>
       </div>
     </Sheet>
   );
 }
 
-function IncidentView({ state, setState, rec, onClose, onDelete, openJob }) {
+function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit }) {
   const [v, setV] = useState(rec);
+  // keep local view in sync if the underlying record changes (e.g. after an edit)
+  useEffect(() => { setV(rec); }, [rec]);
   const sevBadge = (s) => s === "high" ? "tm-badge-red" : s === "med" ? "tm-badge-amber" : "tm-badge-green";
   const sevLabel = (s) => s === "high" ? "🔴 Serious" : s === "med" ? "🟡 Moderate" : "🟢 Minor";
   const setStatus = (status) => {
     setState((st) => ({ ...st, incidents: st.incidents.map((x) => x.id === v.id ? { ...x, status } : x) }));
     setV((p) => ({ ...p, status }));
   };
+  const fmtList = (val) => Array.isArray(val) ? val.join(", ") : val;
+  const people = fmtList(v.peopleInvolved ?? v.personInvolved);
+  const witnesses = fmtList(v.witnesses);
   return (
     <Sheet open onClose={onClose} title={"🚨 " + v.type}>
       <div style={{ fontSize: 14, lineHeight: 1.7 }}>
@@ -1527,16 +1714,17 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob }) {
             <p><b>Job:</b> {jobLabel(job)}{openJob && <> · <a onClick={() => { onClose(); openJob(job.id); }} style={{ color: "var(--lime)", cursor: "pointer", fontWeight: 600 }}>open ›</a></>}</p>
           );
         })()}
-        {v.personInvolved && <p><b>Person(s):</b> {v.personInvolved}</p>}
+        {people && <p><b>Person(s):</b> {people}</p>}
         {v.injuryDetails && <p style={{ marginTop: 8 }}><b>Injury:</b> {v.injuryDetails}</p>}
         <p style={{ marginTop: 8 }}><b>What happened:</b> {v.description}</p>
         {v.immediateActions && <p style={{ marginTop: 8 }}><b>Immediate actions:</b> {v.immediateActions}</p>}
-        {v.witnesses && <p style={{ marginTop: 8 }}><b>Witnesses:</b> {v.witnesses}</p>}
+        {witnesses && <p style={{ marginTop: 8 }}><b>Witnesses:</b> {witnesses}</p>}
         <p style={{ marginTop: 8 }}><b>Reported by:</b> {v.reportedBy || "—"} {v.signed ? "✅ signed" : ""}</p>
         <div className="tm-flex" style={{ gap: 8, marginTop: 14 }}>
           {v.status !== "closed"
             ? <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={() => setStatus("closed")}>✅ Mark Closed</button>
             : <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => setStatus("open")}>Re-open</button>}
+          {onEdit && <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => onEdit(v)}>✏️ Edit</button>}
         </div>
       </div>
       <div className="tm-sheet-actions">
@@ -1588,10 +1776,9 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
     <Sheet open onClose={onClose} title="⚠️ New Hazard Sheet">
       <label className="tm-label">Site / Job Address</label>
       <input className="tm-input" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. 12 Smith Rd, Pukekohe" />
-      <div className="tm-row">
-        <div><label className="tm-label">Date</label><input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        <div><label className="tm-label">Team Lead</label><input className="tm-input" value={lead} onChange={(e) => setLead(e.target.value)} placeholder="Name" /></div>
-      </div>
+      <label className="tm-label">Date</label>
+      <input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <PeoplePicker state={state} value={lead} onChange={setLead} single label="Team Lead" placeholder="Lead's name…" />
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Identified Hazards</div>
@@ -1619,6 +1806,19 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
       <hr className="tm-hr" />
       <div className="tm-section-head">Team Sign-Off</div>
       {!!(job?.crewIds || []).length && <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 10 }}>Assigned crew are pre-loaded below — hand the phone round for each to sign.</p>}
+      {/* Quick-add any crew member not already listed as a signer */}
+      {state.crew.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {state.crew.filter((c) => !signers.some((s) => s.crewId === c.id || s.name === crewName(c))).map((c) => (
+            <button
+              key={c.id} type="button" className="tm-chip"
+              onClick={() => setSigners((s) => [...s, { crewId: c.id, name: crewName(c), role: c.role || "", signed: false }])}
+            >
+              + {crewName(c)}
+            </button>
+          ))}
+        </div>
+      )}
       {signers.map((s, i) => (
         <div className="tm-card" style={{ padding: 12, marginBottom: 10, background: "var(--surface-2)" }} key={i}>
           <div className="tm-row">
@@ -1630,7 +1830,7 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
           <button className="tm-btn tm-btn-outline tm-btn-sm tm-mt-8" onClick={() => removeSigner(i)}>Remove</button>
         </div>
       ))}
-      <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={addSigner}>+ Add Crew Member</button>
+      <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={addSigner}>+ Add Person Manually</button>
 
       <div className="tm-sheet-actions">
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Cancel</button>
