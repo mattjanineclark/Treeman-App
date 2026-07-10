@@ -29,6 +29,15 @@ export const DEFAULT_SETTINGS = {
     "🏗️ Chipper in use", "🚜 Machinery / EWP", "💧 Wet / slippery surfaces",
     "🌿 Dense vegetation", "📡 Underground services", "🪨 Debris / trip hazards",
   ],
+  controlMeasures: [
+    "Full PPE worn by all crew", "Exclusion zone set up & signed",
+    "Drop zone cleared of people & property", "Traffic management / cones in place",
+    "Spotter posted", "Powerlines — maintain 4m clearance / lines de-energised",
+    "Rigging plan agreed before cutting", "Escape routes identified",
+    "Chainsaw chain brake engaged when moving", "Ground crew clear of chipper feed",
+    "Weather checked — stop work if wind increases", "First aid kit & phone on site",
+    "Insect nests checked & treated", "Machinery isolated before adjustment",
+  ],
   gearItems: [
     { id: "helmet", icon: "⛑️", name: "Hard Hat" },
     { id: "visor", icon: "🥽", name: "Face Shield" },
@@ -817,7 +826,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v15</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v16</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
@@ -1010,6 +1019,7 @@ function JobsPanel({ state, setState, toast, confirm, setFabAction, activeJobId,
   const [addForm, setAddForm] = useState(null); // 'quote' | 'hazard' | 'incident' | 'crew' | null
   const [viewRec, setViewRec] = useState(null);  // { kind, rec }
   const [editIncident, setEditIncident] = useState(null);
+  const [editHazard, setEditHazard] = useState(null);
   const [openSection, setOpenSection] = useState(null); // 'quotes'|'hazards'|'incidents'|'crew'
 
   // start-date prompt when scheduling
@@ -1267,10 +1277,14 @@ function JobsPanel({ state, setState, toast, confirm, setFabAction, activeJobId,
 
         {/* Incident edit form (opened from the incident viewer) */}
         {editIncident && <IncidentForm state={state} setState={setState} toast={toast} editing={editIncident} job={activeJob} onClose={() => setEditIncident(null)} onSaved={() => setEditIncident(null)} />}
+        {editHazard && <HazardForm state={state} setState={setState} toast={toast} editing={editHazard} job={activeJob} onClose={() => setEditHazard(null)} onSaved={() => setEditHazard(null)} />}
 
         {/* Record viewers */}
         {viewRec && viewRec.kind === "quote" && <QuoteView state={state} setState={setState} rec={viewRec.rec} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("quote", viewRec.rec.id)} />}
-        {viewRec && viewRec.kind === "hazard" && <HazardView state={state} rec={viewRec.rec} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("hazard", viewRec.rec.id)} />}
+        {viewRec && viewRec.kind === "hazard" && !editHazard && (() => {
+          const live = state.hazards.find((h) => h.id === viewRec.rec.id) || viewRec.rec;
+          return <HazardView state={state} rec={live} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("hazard", viewRec.rec.id)} onEdit={(r) => setEditHazard(r)} />;
+        })()}
         {viewRec && viewRec.kind === "incident" && !editIncident && (() => {
           const live = state.incidents.find((x) => x.id === viewRec.rec.id) || viewRec.rec;
           return <IncidentView state={state} setState={setState} rec={live} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("incident", viewRec.rec.id)} onEdit={(r) => setEditIncident(r)} />;
@@ -1746,20 +1760,24 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
 // ══════════════════════════════════════════════════════════════
 //  HAZARD — form + view (used inside a Job). Crew can sign.
 // ══════════════════════════════════════════════════════════════
-function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
-  const [site, setSite] = useState(job?.site || "");
-  const [date, setDate] = useState(today);
-  const [jobType, setJobType] = useState(job?.jobType || "");
-  const [lead, setLead] = useState("");
-  const [checked, setChecked] = useState([]);
-  const [hazardDetails, setHazardDetails] = useState({}); // { [hazardName]: { control, notes } }
-  const [otherHazards, setOtherHazards] = useState("");
-  const [risk, setRisk] = useState("");
-  // Pre-seed signers from the job's assigned crew so they can sign on the spot
-  const [signers, setSigners] = useState(() => (job?.crewIds || []).map((id) => {
-    const c = findCrew(state, id);
-    return { crewId: id, name: c ? crewName(c) : "", role: c ? c.role : "", signed: false };
-  }));
+function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSaved }) {
+  const e0 = editing || {};
+  const [site, setSite] = useState(e0.site ?? (job?.site || ""));
+  const [date, setDate] = useState(e0.date || today());
+  const [jobType, setJobType] = useState(e0.jobType ?? (job?.jobType || ""));
+  const [lead, setLead] = useState(e0.lead || "");
+  const [checked, setChecked] = useState(e0.hazards || []);
+  const [hazardDetails, setHazardDetails] = useState(e0.hazardDetails || {}); // { [hazardName]: { control, notes } }
+  const [otherHazards, setOtherHazards] = useState(e0.otherHazards || "");
+  const [risk, setRisk] = useState(e0.risk || "");
+  // When editing, load existing signers; otherwise pre-seed from the job's assigned crew.
+  const [signers, setSigners] = useState(() => {
+    if (editing && editing.signers) return editing.signers.map((s) => ({ ...s }));
+    return (job?.crewIds || []).map((id) => {
+      const c = findCrew(state, id);
+      return { crewId: id, name: c ? crewName(c) : "", role: c ? c.role : "", signed: false };
+    });
+  });
 
   const toggleHazard = (h) => setChecked((c) => c.includes(h) ? c.filter((x) => x !== h) : [...c, h]);
   const setDetail = (h, patch) => setHazardDetails((d) => ({ ...d, [h]: { ...(d[h] || {}), ...patch } }));
@@ -1773,19 +1791,23 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
     // keep only details for currently-ticked hazards
     const details = {};
     checked.forEach((h) => { details[h] = hazardDetails[h] || { control: "", notes: "" }; });
-    const record = {
-      id: uid(), ts: Date.now(), jobId, site, date, jobType, lead,
+    const fields = {
+      site, date, jobType, lead,
       hazards: checked, hazardDetails: details, otherHazards, risk,
       signers: signers.map((s) => ({ name: s.name, role: s.role, signed: s.signed })),
-      status: "open",
     };
-    setState((st) => ({ ...st, hazards: [record, ...st.hazards] }));
-    toast("✅ Hazard sheet saved");
+    if (editing) {
+      setState((st) => ({ ...st, hazards: st.hazards.map((h) => h.id === editing.id ? { ...h, ...fields } : h) }));
+      toast("✅ Hazard sheet updated");
+    } else {
+      setState((st) => ({ ...st, hazards: [{ id: uid(), ts: Date.now(), jobId: jobId ?? null, status: "open", ...fields }, ...st.hazards] }));
+      toast("✅ Hazard sheet saved");
+    }
     onSaved();
   };
 
   return (
-    <Sheet open onClose={onClose} title="⚠️ New Hazard Sheet">
+    <Sheet open onClose={onClose} title={editing ? "⚠️ Edit Hazard Sheet" : "⚠️ New Hazard Sheet"}>
       <label className="tm-label">Site / Job Address</label>
       <input className="tm-input" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. 12 Smith Rd, Pukekohe" />
       <label className="tm-label">Date</label>
@@ -1807,7 +1829,22 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
             {on && (
               <div className="tm-jobpill-body" style={{ paddingTop: 10 }}>
                 <label className="tm-label">Control Measure</label>
-                <textarea className="tm-textarea" style={{ minHeight: 60 }} value={d.control || ""} onChange={(e) => setDetail(h, { control: e.target.value })} placeholder="How is this hazard controlled? PPE, exclusion zone, method..." />
+                {/* Quick-add standard control measures (from Settings). Appends to the field. */}
+                {(state.settings.controlMeasures || []).length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                    {state.settings.controlMeasures.map((cm) => (
+                      <button
+                        key={cm} type="button" className="tm-chip"
+                        onClick={() => {
+                          const cur = d.control || "";
+                          if (cur.split("\n").map((x) => x.trim()).includes(cm)) return; // avoid dupes
+                          setDetail(h, { control: cur ? cur + "\n" + cm : cm });
+                        }}
+                      >+ {cm}</button>
+                    ))}
+                  </div>
+                )}
+                <textarea className="tm-textarea" style={{ minHeight: 60 }} value={d.control || ""} onChange={(e) => setDetail(h, { control: e.target.value })} placeholder="Tap standard measures above, or type your own..." />
                 <label className="tm-label">Notes</label>
                 <textarea className="tm-textarea" style={{ minHeight: 50 }} value={d.notes || ""} onChange={(e) => setDetail(h, { notes: e.target.value })} placeholder="Anything specific to today / this site..." />
               </div>
@@ -1863,16 +1900,17 @@ function HazardForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
   );
 }
 
-function HazardView({ state, rec, onClose, onDelete }) {
+function HazardView({ state, rec, onClose, onDelete, onEdit }) {
   const riskLabel = rec.risk === "high" ? "🔴 High" : rec.risk === "med" ? "🟡 Medium" : "🟢 Low";
   const details = rec.hazardDetails || {};
   const company = state.settings.companyInfo || {};
 
   const printSheet = () => {
     const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    const nl = (s) => esc(s).replace(/\n/g, "<br>");
     const rows = (rec.hazards || []).map((h) => {
       const d = details[h] || {};
-      return `<tr><td class="hz">${esc(h)}</td><td>${esc(d.control) || "—"}</td><td>${esc(d.notes) || ""}</td></tr>`;
+      return `<tr><td class="hz">${esc(h)}</td><td>${nl(d.control) || "—"}</td><td>${nl(d.notes) || ""}</td></tr>`;
     }).join("");
     const signers = (rec.signers || []).map((s) =>
       `<div class="sig"><span>${esc(s.name)} <em>(${esc(s.role) || "Crew"})</em></span><span>${s.signed ? "Signed ✔" : "________________"}</span></div>`
@@ -1912,26 +1950,27 @@ function HazardView({ state, rec, onClose, onDelete }) {
   <div class="foot">Generated by The Treeman Field Ops · ${new Date().toLocaleString("en-NZ")}</div>
 </body></html>`;
     // Print via a hidden iframe so we never navigate away from the app (iOS-safe).
+    // Using srcdoc (not document.write) makes repeat prints reliable — document.write
+    // into a reused frame can render blank on the 2nd+ attempt on iOS Safari.
     const existing = document.getElementById("tm-print-frame");
     if (existing) existing.remove();
     const iframe = document.createElement("iframe");
     iframe.id = "tm-print-frame";
     iframe.setAttribute("aria-hidden", "true");
     iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open(); doc.write(html); doc.close();
-    const cleanup = () => { setTimeout(() => { const f = document.getElementById("tm-print-frame"); if (f) f.remove(); }, 500); };
-    const go = () => {
-      try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      } catch (e) { /* ignore */ }
-      cleanup();
+    iframe.onload = () => {
+      // Small delay so fonts/layout settle before the print dialog opens.
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) { /* ignore */ }
+        // Remove after the dialog has had time to grab the content.
+        setTimeout(() => { const f = document.getElementById("tm-print-frame"); if (f) f.remove(); }, 1000);
+      }, 350);
     };
-    // Give the iframe a moment to lay out before printing.
-    if (iframe.contentWindow.document.readyState === "complete") setTimeout(go, 300);
-    else iframe.onload = () => setTimeout(go, 300);
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
   };
 
   return (
@@ -1945,8 +1984,8 @@ function HazardView({ state, rec, onClose, onDelete }) {
           return (
             <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 12px", marginBottom: 8 }}>
               <div style={{ fontWeight: 700 }}>⚠️ {h}</div>
-              <div style={{ fontSize: 13, marginTop: 4 }}><b>Control:</b> {d.control || "—"}</div>
-              {d.notes && <div style={{ fontSize: 13, marginTop: 2 }}><b>Notes:</b> {d.notes}</div>}
+              <div style={{ fontSize: 13, marginTop: 4, whiteSpace: "pre-line" }}><b>Control:</b> {d.control || "—"}</div>
+              {d.notes && <div style={{ fontSize: 13, marginTop: 2, whiteSpace: "pre-line" }}><b>Notes:</b> {d.notes}</div>}
             </div>
           );
         })}
@@ -1958,6 +1997,7 @@ function HazardView({ state, rec, onClose, onDelete }) {
       </div>
       <div className="tm-sheet-actions" style={{ flexWrap: "wrap" }}>
         <button className="tm-btn tm-btn-primary" onClick={printSheet}>🖨️ Print / PDF</button>
+        {onEdit && <button className="tm-btn tm-btn-outline" onClick={() => onEdit(rec)}>✏️ Edit</button>}
         <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
       </div>
@@ -2685,6 +2725,7 @@ function SettingsPanel({ settings, updateSettings, toast }) {
   const SECTIONS = [
     { id: "navigation", label: "Bottom Nav" },
     { id: "hazards", label: "Hazard Types" },
+    { id: "controls", label: "Control Measures" },
     { id: "incidents", label: "Incident Types" },
     { id: "gear", label: "Gear / PPE" },
     { id: "equipment", label: "Equipment" },
@@ -2713,6 +2754,14 @@ function SettingsPanel({ settings, updateSettings, toast }) {
         list={settings.hazardTypes}
         onChange={(l) => updateSettings({ hazardTypes: l })}
         placeholder="e.g. 🐜 Termite damage"
+        toast={toast}
+      />}
+      {section === "controls" && <ListEditor
+        title="✅ Standard Control Measures"
+        sub="Quick-pick options shown under each ticked hazard on a Hazard sheet."
+        list={settings.controlMeasures || []}
+        onChange={(l) => updateSettings({ controlMeasures: l })}
+        placeholder="e.g. Exclusion zone set up & signed"
         toast={toast}
       />}
       {section === "incidents" && <ListEditor
