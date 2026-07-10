@@ -511,7 +511,7 @@ const styles = `
 .tm-root.dark .tm-quote-totals-row.grand { color: var(--lime); }
 
 /* ── toast ── */
-.tm-toast { position: fixed; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(24px); opacity: 0; background: var(--green-deep); color: var(--lime-hi); padding: 13px 22px; border-radius: 30px; font-size: 13px; font-weight: 700; z-index: 300; transition: transform .28s, opacity .28s; white-space: nowrap; box-shadow: 0 6px 20px var(--shadow-lg); pointer-events: none; visibility: hidden; }
+.tm-toast { position: fixed; bottom: calc(120px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; background: var(--green-deep); color: var(--lime-hi); padding: 13px 22px; border-radius: 30px; font-size: 13px; font-weight: 700; z-index: 400; transition: transform .28s, opacity .28s; white-space: nowrap; box-shadow: 0 6px 20px var(--shadow-lg); pointer-events: none; visibility: hidden; }
 .tm-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
 
 /* confirm dialog */
@@ -817,6 +817,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v13</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
