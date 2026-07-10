@@ -141,6 +141,7 @@ function nextStatus(id) {
 const NAV_SECTIONS = [
   { id: "dashboard", icon: "🏠", label: "Home" },
   { id: "crew", icon: "👷", label: "Crew" },
+  { id: "incidents", icon: "🚨", label: "Incidents" },
   { id: "gear", icon: "🧤", label: "PPE" },
   { id: "maintenance", icon: "🔧", label: "Maint" },
   { id: "toolbox", icon: "📋", label: "Toolbox" },
@@ -194,6 +195,7 @@ const styles = `
   background: var(--bg); color: var(--text);
   min-height: 100vh; min-height: 100dvh;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
 }
 .tm-root.dark {
   --bg:         #0D1508;
@@ -354,7 +356,7 @@ const styles = `
 .tm-input, .tm-select, .tm-textarea {
   width: 100%; padding: 13px 14px; min-height: 48px;
   border: 1.5px solid var(--border); border-radius: 14px;
-  font-family: 'Inter', sans-serif; font-size: 15px;
+  font-family: 'Inter', sans-serif; font-size: 16px;
   color: var(--text); background: var(--surface-2);
   margin-bottom: 12px; outline: none;
   transition: border-color .2s, box-shadow .2s;
@@ -715,7 +717,9 @@ export default function TreemanApp({ initialState, onPersist }) {
       <style>{styles}</style>
 
       <header className="tm-header">
-        <img className="tm-header-logo" src={LOGO_B64} alt="The Treeman" />
+        <a href="https://www.thetreeman.co.nz" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center" }}>
+          <img className="tm-header-logo" src={LOGO_B64} alt="The Treeman — visit website" />
+        </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
         <button
@@ -732,6 +736,7 @@ export default function TreemanApp({ initialState, onPersist }) {
       {tab === "gear" && <GearPanel {...panelProps} />}
       {tab === "maintenance" && <MaintenancePanel {...panelProps} />}
       {tab === "crew" && <CrewPanel {...panelProps} openJob={(id) => { setActiveJobId(id); setTab("jobs"); }} />}
+      {tab === "incidents" && <IncidentsPanel {...panelProps} openJob={(id) => { setActiveJobId(id); setTab("jobs"); }} />}
       {tab === "toolbox" && <ToolboxPanel {...panelProps} />}
       {tab === "settings" && <SettingsPanel settings={state.settings} updateSettings={updateSettings} toast={toast} />}
 
@@ -1329,7 +1334,91 @@ function AssignCrewSheet({ state, job, onClose, onSave }) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  INCIDENT — form + view (used inside a Job)
+//  INCIDENTS PANEL — all incidents across every job + standalone ones.
+//  New incidents logged here are standalone (no job link).
+// ══════════════════════════════════════════════════════════════
+function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [viewRec, setViewRec] = useState(null);
+  const [filter, setFilter] = useState("all"); // all | open | closed
+
+  const openNew = useCallback(() => setAddOpen(true), []);
+  useEffect(() => {
+    setFabAction({ label: "Log incident", onClick: openNew });
+    return () => setFabAction(null);
+  }, [setFabAction, openNew]);
+
+  const deleteIncident = (id) => {
+    confirm({
+      title: "Delete this incident?", danger: true, confirmLabel: "Delete",
+      onYes: () => {
+        setState((st) => ({ ...st, incidents: st.incidents.filter((r) => r.id !== id) }));
+        setViewRec(null);
+        toast("Incident deleted");
+      },
+    });
+  };
+
+  const all = [...state.incidents].sort((a, b) => b.ts - a.ts);
+  const list = all.filter((x) => filter === "all" ? true : filter === "open" ? x.status !== "closed" : x.status === "closed");
+  const openCount = all.filter((x) => x.status !== "closed").length;
+
+  const sevBadge = (s) => s === "high" ? "tm-badge-red" : s === "med" ? "tm-badge-amber" : "tm-badge-green";
+  const FILTERS = [
+    { id: "all", label: `All (${all.length})` },
+    { id: "open", label: `Open (${openCount})` },
+    { id: "closed", label: "Closed" },
+  ];
+
+  return (
+    <div className="tm-panel">
+      <div className="tm-section-head">Incidents</div>
+      <p className="tm-text-mid" style={{ marginBottom: 12, fontSize: 13 }}>
+        Every incident across all jobs, plus any standalone ones. Tap + to log an incident that isn't tied to a job.
+      </p>
+
+      <div className="tm-settings-nav" style={{ marginBottom: 14 }}>
+        {FILTERS.map((f) => (
+          <button key={f.id} className={"tm-settings-pill" + (filter === f.id ? " active" : "")} onClick={() => setFilter(f.id)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="tm-card">
+        {!list.length
+          ? <p className="tm-text-mid">No incidents{filter !== "all" ? " in this filter" : ""}. 🌿</p>
+          : list.map((x) => {
+            const job = findJob(state, x.jobId);
+            return (
+              <div className="tm-record-item" key={x.id} onClick={() => setViewRec(x)} style={{ cursor: "pointer" }}>
+                <div className="tm-record-icon">🚨</div>
+                <div className="tm-record-body">
+                  <div className="tm-record-title">{x.type}</div>
+                  <div className="tm-record-meta">{x.date} {x.time}{x.site ? " · " + x.site : ""}</div>
+                  <div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span className={"tm-badge " + sevBadge(x.severity)}>{x.severity === "high" ? "🔴 Serious" : x.severity === "med" ? "🟡 Moderate" : "🟢 Minor"}</span>
+                    {x.notifiable && <span className="tm-badge tm-badge-red">Notifiable</span>}
+                    <span className={"tm-badge " + (x.status === "closed" ? "tm-badge-green" : "tm-badge-grey")}>{x.status === "closed" ? "Closed" : "Open"}</span>
+                    {job
+                      ? <span className="tm-badge tm-badge-grey">🌲 {jobLabel(job)}</span>
+                      : <span className="tm-badge tm-badge-grey">No job</span>}
+                  </div>
+                </div>
+                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
+              </div>
+            );
+          })}
+      </div>
+
+      {addOpen && <IncidentForm state={state} setState={setState} toast={toast} jobId={null} job={null} onClose={() => setAddOpen(false)} onSaved={() => setAddOpen(false)} />}
+      {viewRec && <IncidentView state={state} setState={setState} rec={viewRec} onClose={() => setViewRec(null)} onDelete={() => deleteIncident(viewRec.id)} openJob={openJob} />}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INCIDENT — form + view (used inside a Job, or standalone)
 // ══════════════════════════════════════════════════════════════
 function IncidentForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
   const [type, setType] = useState("");
@@ -1413,7 +1502,7 @@ function IncidentForm({ state, setState, toast, jobId, job, onClose, onSaved }) 
   );
 }
 
-function IncidentView({ state, setState, rec, onClose, onDelete }) {
+function IncidentView({ state, setState, rec, onClose, onDelete, openJob }) {
   const [v, setV] = useState(rec);
   const sevBadge = (s) => s === "high" ? "tm-badge-red" : s === "med" ? "tm-badge-amber" : "tm-badge-green";
   const sevLabel = (s) => s === "high" ? "🔴 Serious" : s === "med" ? "🟡 Moderate" : "🟢 Minor";
@@ -1431,6 +1520,13 @@ function IncidentView({ state, setState, rec, onClose, onDelete }) {
         </div>
         <p><b>When:</b> {v.date} {v.time}</p>
         <p><b>Location:</b> {v.site || "—"}</p>
+        {(() => {
+          const job = findJob(state, v.jobId);
+          if (!job) return <p><b>Job:</b> Not linked to a job</p>;
+          return (
+            <p><b>Job:</b> {jobLabel(job)}{openJob && <> · <a onClick={() => { onClose(); openJob(job.id); }} style={{ color: "var(--lime)", cursor: "pointer", fontWeight: 600 }}>open ›</a></>}</p>
+          );
+        })()}
         {v.personInvolved && <p><b>Person(s):</b> {v.personInvolved}</p>}
         {v.injuryDetails && <p style={{ marginTop: 8 }}><b>Injury:</b> {v.injuryDetails}</p>}
         <p style={{ marginTop: 8 }}><b>What happened:</b> {v.description}</p>
