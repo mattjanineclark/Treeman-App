@@ -31,6 +31,11 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Activate a new service worker as soon as it's ready, and take control of
+        // open pages immediately — so new deploys show up without a manual cache clear.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         // Cache the app shell + the gallery images from thetreeman.co.nz for offline use.
         globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
         runtimeCaching: [
