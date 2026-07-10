@@ -20,7 +20,18 @@ import { DEFAULT_STATE } from "./TreemanApp.jsx";
 
 const WORKSPACE_ID = "treeman-fieldops"; // single shared doc for the whole crew
 const CACHE_KEY = "treeman_ws_cache";
-const REV_KEY = "treeman_ws_rev";
+
+// Stable per-device id so we can recognise (and ignore) echoes of our own writes.
+function getClientId() {
+  try {
+    let id = localStorage.getItem("treeman_client_id");
+    if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("treeman_client_id", id); }
+    return id;
+  } catch (e) {
+    return "anon-" + Math.random().toString(36).slice(2);
+  }
+}
+export const CLIENT_ID = getClientId();
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -95,7 +106,7 @@ async function flush() {
   try {
     const { error } = await supabase
       .from("workspace")
-      .upsert({ id: WORKSPACE_ID, data: toSend, updated_at: new Date().toISOString() });
+      .upsert({ id: WORKSPACE_ID, data: toSend, updated_at: new Date().toISOString(), origin: CLIENT_ID });
     if (error) console.warn("[Treeman] push error", error.message);
   } catch (e) {
     console.warn("[Treeman] push exception", e);
@@ -117,6 +128,9 @@ export function subscribe(onRemoteChange) {
       "postgres_changes",
       { event: "*", schema: "public", table: "workspace", filter: `id=eq.${WORKSPACE_ID}` },
       (payload) => {
+        // Ignore echoes of our own writes — this is what stops the app remounting
+        // (and killing toasts / open forms) every time WE save something.
+        if (payload.new && payload.new.origin === CLIENT_ID) return;
         const next = payload.new && payload.new.data;
         if (next) { saveLocal(next); onRemoteChange(next); }
       }
