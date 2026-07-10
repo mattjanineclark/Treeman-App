@@ -1,4 +1,4 @@
-# The Treeman — Field Ops
+# The Treeman — Field Opsy
 
 A mobile-first PWA for The Treeman arborist crew: jobs, quotes, hazard sheets,
 incident reports, crew management, PPE, equipment maintenance and toolbox talks.
