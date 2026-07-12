@@ -247,9 +247,9 @@ const styles = `
   width: 100%;
   padding:
     16px
-    calc(env(safe-area-inset-right, 0px) + 16px)
+    calc(env(safe-area-inset-right, 0px) + 8px)
     calc(96px + env(safe-area-inset-bottom, 0px))
-    calc(env(safe-area-inset-left, 0px) + 16px);
+    calc(env(safe-area-inset-left, 0px) + 8px);
   max-width: 720px; margin: 0 auto;
   animation: tm-fadein .22s ease;
 }
@@ -837,7 +837,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v17</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v18</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
