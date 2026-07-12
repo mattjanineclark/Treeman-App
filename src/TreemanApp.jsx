@@ -203,6 +203,7 @@ const styles = `
   font-family: 'Inter', sans-serif;
   background: var(--bg); color: var(--text);
   min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: contain;
 }
@@ -226,7 +227,7 @@ const styles = `
 .tm-header {
   background: #000;
   display: flex; align-items: center; gap: 12px;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) calc(env(safe-area-inset-right, 0px) + 16px) 10px calc(env(safe-area-inset-left, 0px) + 16px);
   position: sticky; top: 0; z-index: 90;
 }
 .tm-header-logo { height: 34px; width: auto; display: block; }
@@ -242,8 +243,14 @@ const styles = `
 
 /* ── content area ── */
 .tm-panel {
-  padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0px));
-  max-width: 640px; margin: 0 auto;
+  flex: 1 0 auto;
+  width: 100%;
+  padding:
+    16px
+    calc(env(safe-area-inset-right, 0px) + 16px)
+    calc(96px + env(safe-area-inset-bottom, 0px))
+    calc(env(safe-area-inset-left, 0px) + 16px);
+  max-width: 720px; margin: 0 auto;
   animation: tm-fadein .22s ease;
 }
 @keyframes tm-fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -259,7 +266,7 @@ const styles = `
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
   border-top: 1px solid var(--border);
-  padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  padding: 6px calc(env(safe-area-inset-right, 0px) + 4px) calc(env(safe-area-inset-bottom, 0px) + 6px) calc(env(safe-area-inset-left, 0px) + 4px);
 }
 .tm-navbtn {
   flex: 1; border: none; background: transparent; cursor: pointer;
@@ -294,7 +301,7 @@ const styles = `
 
 /* ── FAB ── */
 .tm-fab {
-  position: fixed; right: 18px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 99;
+  position: fixed; right: calc(env(safe-area-inset-right, 0px) + 18px); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 99;
   width: 58px; height: 58px; border-radius: 20px;
   background: linear-gradient(140deg, var(--lime) 0%, var(--green-mid) 100%);
   color: #fff; font-size: 26px; border: none; cursor: pointer;
@@ -477,10 +484,14 @@ const styles = `
 .tm-sheet {
   background: var(--sheet-bg);
   border-radius: 26px 26px 0 0;
-  width: 100%; max-width: 640px;
+  width: 100%; max-width: 720px;
   max-height: 88dvh; max-height: 88vh;
   overflow-y: auto;
-  padding: 8px 20px calc(env(safe-area-inset-bottom, 0px) + 22px);
+  padding:
+    8px
+    calc(env(safe-area-inset-right, 0px) + 20px)
+    calc(env(safe-area-inset-bottom, 0px) + 22px)
+    calc(env(safe-area-inset-left, 0px) + 20px);
   box-shadow: 0 -12px 44px var(--shadow-lg);
   animation: tm-sheetup .28s cubic-bezier(0.32, 0.72, 0.22, 1);
   -webkit-overflow-scrolling: touch;
@@ -826,7 +837,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v16</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v17</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
