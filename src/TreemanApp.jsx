@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { buildHazardPdf, buildIncidentPdf, sharePdf, printPdf, pdfFilename } from "./pdf";
+import { buildHazardPdf, buildIncidentPdf, sharePdf, pdfFilename } from "./pdf";
 
 /**
  * The Treeman — Field Ops (Mobile-first edition)
@@ -23,21 +23,24 @@ const ICON_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABM
 
 export const DEFAULT_SETTINGS = {
   hazardTypes: [
-    "🌳 Deadwood / widow-makers", "⚡ Powerlines nearby", "🏠 Structures in drop zone",
-    "🌬️ High wind / weather", "👥 Public / pedestrians", "🚗 Traffic / vehicles",
-    "🐝 Wasps / bees / insects", "🐍 Wildlife hazards", "⛰️ Slope / uneven ground",
-    "🪓 Chainsaw use", "🪢 Rope & rigging work", "🧗 Aerial / climbing work",
-    "🏗️ Chipper in use", "🚜 Machinery / EWP", "💧 Wet / slippery surfaces",
-    "🌿 Dense vegetation", "📡 Underground services", "🪨 Debris / trip hazards",
-  ],
-  controlMeasures: [
-    "Full PPE worn by all crew", "Exclusion zone set up & signed",
-    "Drop zone cleared of people & property", "Traffic management / cones in place",
-    "Spotter posted", "Powerlines — maintain 4m clearance / lines de-energised",
-    "Rigging plan agreed before cutting", "Escape routes identified",
-    "Chainsaw chain brake engaged when moving", "Ground crew clear of chipper feed",
-    "Weather checked — stop work if wind increases", "First aid kit & phone on site",
-    "Insect nests checked & treated", "Machinery isolated before adjustment",
+    { name: "🌳 Deadwood / widow-makers", controls: ["Assess canopy before climbing", "Remove deadwood first from ground where possible", "Exclusion zone below work area"] },
+    { name: "⚡ Powerlines nearby", controls: ["Maintain 4m clearance / lines de-energised", "Contact lines company if closer than 4m", "Spotter posted"] },
+    { name: "🏠 Structures in drop zone", controls: ["Drop zone cleared of people & property", "Rigging plan agreed before cutting", "Lower sections with ropes"] },
+    { name: "🌬️ High wind / weather", controls: ["Weather checked — stop work if wind increases", "No aerial work in high wind"] },
+    { name: "👥 Public / pedestrians", controls: ["Exclusion zone set up & signed", "Spotter posted", "Public kept clear of drop zone"] },
+    { name: "🚗 Traffic / vehicles", controls: ["Traffic management / cones in place", "Hi-vis worn", "Spotter for reversing"] },
+    { name: "🐝 Wasps / bees / insects", controls: ["Insect nests checked & treated", "First aid kit & phone on site"] },
+    { name: "🐍 Wildlife hazards", controls: ["Area checked before work", "First aid kit & phone on site"] },
+    { name: "⛰️ Slope / uneven ground", controls: ["Footing assessed", "Escape routes identified"] },
+    { name: "🪓 Chainsaw use", controls: ["Full PPE worn by all crew", "Chainsaw chain brake engaged when moving", "Safe cutting stance"] },
+    { name: "🪢 Rope & rigging work", controls: ["Rigging plan agreed before cutting", "Gear inspected before use", "Ground crew clear of load"] },
+    { name: "🧗 Aerial / climbing work", controls: ["Full harness + backup rope", "Climbing gear inspected", "Ground crew in comms"] },
+    { name: "🏗️ Chipper in use", controls: ["Ground crew clear of chipper feed", "No loose clothing", "Emergency stop known"] },
+    { name: "🚜 Machinery / EWP", controls: ["Machinery isolated before adjustment", "Operator trained & certified", "Exclusion zone around machine"] },
+    { name: "💧 Wet / slippery surfaces", controls: ["Footing assessed", "Take care on slopes"] },
+    { name: "🌿 Dense vegetation", controls: ["Area cleared before work", "Escape routes identified"] },
+    { name: "📡 Underground services", controls: ["Services located before digging", "Cables & Locators used"] },
+    { name: "🪨 Debris / trip hazards", controls: ["Work area kept clear", "Debris removed regularly"] },
   ],
   gearItems: [
     { id: "helmet", icon: "⛑️", name: "Hard Hat" },
@@ -105,6 +108,10 @@ function uid() { return Date.now() + Math.random().toString(36).slice(2, 8); }
 function fmtDateTime(ts) { return new Date(ts).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function fmtMoney(n) { return (Number(n) || 0).toLocaleString("en-NZ", { style: "currency", currency: "NZD" }); }
 function today() { return new Date().toISOString().split("T")[0]; }
+// Hazard types may be stored as plain strings (old) or { name, controls } (new).
+// Normalise to always give { name, controls }.
+function hazName(h) { return typeof h === "string" ? h : (h && h.name) || ""; }
+function hazControls(h) { return (h && typeof h === "object" && Array.isArray(h.controls)) ? h.controls : []; }
 function crewName(c) { return c ? `${c.first} ${c.last}`.trim() : ""; }
 function findCrew(state, id) { return id ? state.crew.find((c) => c.id === id) : null; }
 function initials(name) { return (name || "").split(" ").filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase(); }
@@ -798,7 +805,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v21</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v22</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
@@ -867,7 +874,7 @@ function DashboardPanel({ state, goTab, openJob }) {
   const greet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
   const dateStr = now.toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
 
-  const openHazards = state.hazards.filter((x) => x.status === "open").length;
+  const totalHazards = state.hazards.length;
   const openIncidents = state.incidents.filter((x) => x.status !== "closed").length;
   const crewCount = state.crew.length;
 
@@ -904,10 +911,10 @@ function DashboardPanel({ state, goTab, openJob }) {
         <div className="tm-bento-tile accent wide" onClick={() => goTab("hazard")}>
           <div className="tm-flex-between">
             <span className="tm-bento-icon">⚠️</span>
-            <span className="tm-bento-num">{openHazards}</span>
+            <span className="tm-bento-num">{totalHazards}</span>
           </div>
           <div>
-            <div className="tm-bento-label">Open Hazard Sheets</div>
+            <div className="tm-bento-label">Hazard Sheets</div>
             <div className="tm-bento-sub">Tap to review or start a new one</div>
           </div>
         </div>
@@ -976,8 +983,10 @@ function HazardsPanel({ state, setState, toast, confirm, setFabAction }) {
   const [addOpen, setAddOpen] = useState(false);
   const [viewId, setViewId] = useState(null);
   const [editRec, setEditRec] = useState(null);
+  const [copyFrom, setCopyFrom] = useState(null); // seed a new sheet from an old one
+  const [query, setQuery] = useState("");
 
-  const openNew = useCallback(() => setAddOpen(true), []);
+  const openNew = useCallback(() => { setCopyFrom(null); setAddOpen(true); }, []);
   useEffect(() => {
     setFabAction({ label: "New hazard sheet", onClick: openNew });
     return () => setFabAction(null);
@@ -994,7 +1003,25 @@ function HazardsPanel({ state, setState, toast, confirm, setFabAction }) {
     });
   };
 
+  // Duplicate a past sheet into a fresh one: same site/work/hazards/controls,
+  // but today's date and cleared signatures (crew sign again on-site).
+  const copySheet = (h) => {
+    const seed = {
+      site: h.site, jobType: h.jobType, lead: h.lead,
+      hazards: [...(h.hazards || [])],
+      hazardDetails: JSON.parse(JSON.stringify(h.hazardDetails || {})),
+      otherHazards: h.otherHazards, risk: h.risk,
+      date: today(),
+      signers: (h.signers || []).map((s) => ({ name: s.name, role: s.role, signed: false })),
+    };
+    setViewId(null);
+    setCopyFrom(seed);
+    setAddOpen(true);
+  };
+
   const all = [...state.hazards].sort((a, b) => b.ts - a.ts);
+  const q = query.trim().toLowerCase();
+  const list = q ? all.filter((h) => (h.site || "").toLowerCase().includes(q)) : all;
   const viewRec = viewId ? state.hazards.find((x) => x.id === viewId) : null;
   const riskBadge = (r) => r === "high" ? "tm-badge-red" : r === "med" ? "tm-badge-amber" : "tm-badge-green";
   const riskLabel = (r) => r === "high" ? "🔴 High" : r === "med" ? "🟡 Medium" : "🟢 Low";
@@ -1003,18 +1030,27 @@ function HazardsPanel({ state, setState, toast, confirm, setFabAction }) {
     <div className="tm-panel">
       <div className="tm-section-head">Hazard Sheets</div>
       <p className="tm-text-mid" style={{ marginBottom: 12, fontSize: 13 }}>
-        Site hazard identification & control. Tap + to start a new sheet, fill in the hazards and controls, and get the crew to sign on.
+        Site hazard identification & control. Tap + for a new sheet. For a repeat visit, search the address and tap Copy to reuse a previous sheet.
       </p>
 
+      {all.length > 0 && (
+        <input
+          className="tm-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="🔍 Search by address…"
+        />
+      )}
+
       <div className="tm-card">
-        {!all.length
-          ? <p className="tm-text-mid">No hazard sheets yet. Tap + to create one.</p>
-          : all.map((h) => {
+        {!list.length
+          ? <p className="tm-text-mid">{q ? "No hazard sheets match that address." : "No hazard sheets yet. Tap + to create one."}</p>
+          : list.map((h) => {
             const signed = (h.signers || []).filter((s) => s.signed).length;
             return (
-              <div className="tm-record-item" key={h.id} onClick={() => setViewId(h.id)} style={{ cursor: "pointer" }}>
-                <div className="tm-record-icon">⚠️</div>
-                <div className="tm-record-body">
+              <div className="tm-record-item" key={h.id} style={{ alignItems: "stretch" }}>
+                <div className="tm-record-icon" onClick={() => setViewId(h.id)} style={{ cursor: "pointer" }}>⚠️</div>
+                <div className="tm-record-body" onClick={() => setViewId(h.id)} style={{ cursor: "pointer" }}>
                   <div className="tm-record-title">{h.site || "Hazard sheet"}</div>
                   <div className="tm-record-meta">{h.date}{h.lead ? " · " + h.lead : ""}</div>
                   <div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1023,13 +1059,13 @@ function HazardsPanel({ state, setState, toast, confirm, setFabAction }) {
                     <span className="tm-badge tm-badge-grey">{signed}/{(h.signers || []).length} signed</span>
                   </div>
                 </div>
-                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
+                <button className="tm-btn tm-btn-outline tm-btn-sm" style={{ alignSelf: "center", flexShrink: 0 }} onClick={() => copySheet(h)}>Copy</button>
               </div>
             );
           })}
       </div>
 
-      {addOpen && <HazardForm state={state} setState={setState} toast={toast} jobId={null} job={null} onClose={() => setAddOpen(false)} onSaved={() => setAddOpen(false)} />}
+      {addOpen && <HazardForm state={state} setState={setState} toast={toast} jobId={null} job={null} seed={copyFrom} onClose={() => { setAddOpen(false); setCopyFrom(null); }} onSaved={() => { setAddOpen(false); setCopyFrom(null); }} />}
       {editRec && <HazardForm state={state} setState={setState} toast={toast} editing={editRec} job={null} onClose={() => setEditRec(null)} onSaved={() => setEditRec(null)} />}
       {viewRec && !editRec && <HazardView state={state} rec={viewRec} onClose={() => setViewId(null)} onDelete={() => deleteHazard(viewRec.id)} onEdit={(r) => setEditRec(r)} />}
     </div>
@@ -1225,7 +1261,6 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
   const witnesses = fmtList(v.witnesses);
   const company = state.settings.companyInfo || {};
   const doShare = async () => { await sharePdf(await buildIncidentPdf(v, company), pdfFilename("incident", v)); };
-  const doPrint = async () => { printPdf(await buildIncidentPdf(v, company)); };
   return (
     <Sheet open onClose={onClose} title={"🚨 " + v.type}>
       <div style={{ fontSize: 14, lineHeight: 1.7 }}>
@@ -1250,8 +1285,7 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
         </div>
       </div>
       <div className="tm-sheet-actions" style={{ flexWrap: "wrap" }}>
-        <button className="tm-btn tm-btn-primary" onClick={doShare}>📤 Share PDF</button>
-        <button className="tm-btn tm-btn-outline" onClick={doPrint}>🖨️ Print</button>
+        <button className="tm-btn tm-btn-primary" onClick={doShare}>📤 Share / Print PDF</button>
         <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
       </div>
@@ -1262,8 +1296,8 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
 // ══════════════════════════════════════════════════════════════
 //  HAZARD — form + view (used inside a Job). Crew can sign.
 // ══════════════════════════════════════════════════════════════
-function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSaved }) {
-  const e0 = editing || {};
+function HazardForm({ state, setState, toast, jobId, job, editing, seed, onClose, onSaved }) {
+  const e0 = editing || seed || {};
   const [site, setSite] = useState(e0.site ?? (job?.site || ""));
   const [date, setDate] = useState(e0.date || today());
   const [jobType, setJobType] = useState(e0.jobType ?? (job?.jobType || ""));
@@ -1272,12 +1306,28 @@ function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSa
   const [hazardDetails, setHazardDetails] = useState(e0.hazardDetails || {}); // { [hazardName]: { control, notes } }
   const [otherHazards, setOtherHazards] = useState(e0.otherHazards || "");
   const [risk, setRisk] = useState(e0.risk || "");
-  // When editing, load existing signers; otherwise start empty (add via crew chips).
+  // Editing/copy: load existing signers; fresh sheet: start empty (add via crew chips).
   const [signers, setSigners] = useState(() =>
-    editing && editing.signers ? editing.signers.map((s) => ({ ...s })) : []
+    e0.signers ? e0.signers.map((s) => ({ ...s })) : []
   );
 
-  const toggleHazard = (h) => setChecked((c) => c.includes(h) ? c.filter((x) => x !== h) : [...c, h]);
+  const toggleHazard = (h) => {
+    setChecked((c) => {
+      if (c.includes(h)) return c.filter((x) => x !== h);
+      // On tick: pre-fill this hazard's saved controls into the control field
+      // (only if it's currently empty, so we never clobber edits on re-tick).
+      const ht = state.settings.hazardTypes.find((t) => hazName(t) === h);
+      const saved = hazControls(ht);
+      if (saved.length) {
+        setHazardDetails((d) => {
+          const existing = d[h] || {};
+          if (existing.control && existing.control.trim()) return d; // keep edits
+          return { ...d, [h]: { ...existing, control: saved.join("\n") } };
+        });
+      }
+      return [...c, h];
+    });
+  };
   const setDetail = (h, patch) => setHazardDetails((d) => ({ ...d, [h]: { ...(d[h] || {}), ...patch } }));
   const addSigner = () => setSigners((s) => [...s, { name: "", role: "", signed: false }]);
   const updateSigner = (i, patch) => setSigners((s) => s.map((sg, idx) => idx === i ? { ...sg, ...patch } : sg));
@@ -1298,7 +1348,7 @@ function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSa
       setState((st) => ({ ...st, hazards: st.hazards.map((h) => h.id === editing.id ? { ...h, ...fields } : h) }));
       toast("✅ Hazard sheet updated");
     } else {
-      setState((st) => ({ ...st, hazards: [{ id: uid(), ts: Date.now(), jobId: jobId ?? null, status: "open", ...fields }, ...st.hazards] }));
+      setState((st) => ({ ...st, hazards: [{ id: uid(), ts: Date.now(), ...fields }, ...st.hazards] }));
       toast("✅ Hazard sheet saved");
     }
     onSaved();
@@ -1316,37 +1366,39 @@ function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSa
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Identified Hazards</div>
-      <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 10 }}>Tick each hazard present, then add the control measure and any notes for it.</p>
-      {state.settings.hazardTypes.map((h) => {
-        const on = checked.includes(h);
-        const d = hazardDetails[h] || {};
+      <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 10 }}>Tick each hazard present. Its saved controls are filled in automatically — edit them for today's site if needed.</p>
+      {state.settings.hazardTypes.map((ht) => {
+        const name = hazName(ht);
+        const savedControls = hazControls(ht);
+        const on = checked.includes(name);
+        const d = hazardDetails[name] || {};
         return (
-          <div key={h} className={"tm-jobpill" + (on ? " open" : "")} style={{ marginBottom: 8 }}>
-            <div className="tm-jobpill-head" onClick={() => toggleHazard(h)}>
+          <div key={name} className={"tm-jobpill" + (on ? " open" : "")} style={{ marginBottom: 8 }}>
+            <div className="tm-jobpill-head" onClick={() => toggleHazard(name)}>
               <div className={"tm-chk-box" + (on ? " tm-chk-on" : "")} style={on ? { borderColor: "var(--green-mid)", background: "var(--green-mid)", color: "#fff" } : {}}>{on ? "✓" : ""}</div>
-              <div style={{ flex: 1 }}><div className="tm-jobpill-title" style={{ fontSize: 14 }}>{h}</div></div>
+              <div style={{ flex: 1 }}><div className="tm-jobpill-title" style={{ fontSize: 14 }}>{name}</div></div>
             </div>
             {on && (
               <div className="tm-jobpill-body" style={{ paddingTop: 10 }}>
-                <label className="tm-label">Control Measure</label>
-                {/* Quick-add standard control measures (from Settings). Appends to the field. */}
-                {(state.settings.controlMeasures || []).length > 0 && (
+                <label className="tm-label">Control Measures</label>
+                {/* Quick-add this hazard's saved controls. Appends to the field. */}
+                {savedControls.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                    {state.settings.controlMeasures.map((cm) => (
+                    {savedControls.map((cm) => (
                       <button
                         key={cm} type="button" className="tm-chip"
                         onClick={() => {
                           const cur = d.control || "";
                           if (cur.split("\n").map((x) => x.trim()).includes(cm)) return; // avoid dupes
-                          setDetail(h, { control: cur ? cur + "\n" + cm : cm });
+                          setDetail(name, { control: cur ? cur + "\n" + cm : cm });
                         }}
                       >+ {cm}</button>
                     ))}
                   </div>
                 )}
-                <textarea className="tm-textarea" style={{ minHeight: 60 }} value={d.control || ""} onChange={(e) => setDetail(h, { control: e.target.value })} placeholder="Tap standard measures above, or type your own..." />
+                <textarea className="tm-textarea" style={{ minHeight: 60 }} value={d.control || ""} onChange={(e) => setDetail(name, { control: e.target.value })} placeholder="Saved controls fill in here — edit for today's site, or add your own..." />
                 <label className="tm-label">Notes</label>
-                <textarea className="tm-textarea" style={{ minHeight: 50 }} value={d.notes || ""} onChange={(e) => setDetail(h, { notes: e.target.value })} placeholder="Anything specific to today / this site..." />
+                <textarea className="tm-textarea" style={{ minHeight: 50 }} value={d.notes || ""} onChange={(e) => setDetail(name, { notes: e.target.value })} placeholder="Anything specific to today / this site..." />
               </div>
             )}
           </div>
@@ -1406,7 +1458,6 @@ function HazardView({ state, rec, onClose, onDelete, onEdit }) {
   const company = state.settings.companyInfo || {};
 
   const doShare = async () => { await sharePdf(await buildHazardPdf(rec, company), pdfFilename("hazard", rec)); };
-  const doPrint = async () => { printPdf(await buildHazardPdf(rec, company)); };
 
   return (
     <Sheet open onClose={onClose} title={"⚠️ " + (rec.site || "Hazard sheet")}>
@@ -1431,8 +1482,7 @@ function HazardView({ state, rec, onClose, onDelete, onEdit }) {
         <ul style={{ paddingLeft: 20 }}>{rec.signers.map((s, i) => <li key={i}>{s.name} ({s.role || "Crew"}) — {s.signed ? "SIGNED ✅" : "NOT SIGNED"}</li>)}</ul>
       </div>
       <div className="tm-sheet-actions" style={{ flexWrap: "wrap" }}>
-        <button className="tm-btn tm-btn-primary" onClick={doShare}>📤 Share PDF</button>
-        <button className="tm-btn tm-btn-outline" onClick={doPrint}>🖨️ Print</button>
+        <button className="tm-btn tm-btn-primary" onClick={doShare}>📤 Share / Print PDF</button>
         {onEdit && <button className="tm-btn tm-btn-outline" onClick={() => onEdit(rec)}>✏️ Edit</button>}
         <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
@@ -1858,8 +1908,7 @@ function SettingsPanel({ settings, updateSettings, toast }) {
 
   const SECTIONS = [
     { id: "navigation", label: "Bottom Nav" },
-    { id: "hazards", label: "Hazard Types" },
-    { id: "controls", label: "Control Measures" },
+    { id: "hazards", label: "Hazards & Controls" },
     { id: "incidents", label: "Incident Types" },
     { id: "gear", label: "Gear / PPE" },
     { id: "talks", label: "Toolbox Topics" },
@@ -1880,22 +1929,7 @@ function SettingsPanel({ settings, updateSettings, toast }) {
       </div>
 
       {section === "navigation" && <NavSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
-      {section === "hazards" && <ListEditor
-        title="⚠️ Hazard Checklist Items"
-        sub="These appear as tick-boxes on every new Hazard ID sheet."
-        list={settings.hazardTypes}
-        onChange={(l) => updateSettings({ hazardTypes: l })}
-        placeholder="e.g. 🐜 Termite damage"
-        toast={toast}
-      />}
-      {section === "controls" && <ListEditor
-        title="✅ Standard Control Measures"
-        sub="Quick-pick options shown under each ticked hazard on a Hazard sheet."
-        list={settings.controlMeasures || []}
-        onChange={(l) => updateSettings({ controlMeasures: l })}
-        placeholder="e.g. Exclusion zone set up & signed"
-        toast={toast}
-      />}
+      {section === "hazards" && <HazardTypesSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
       {section === "incidents" && <ListEditor
         title="🚨 Incident Types"
         sub="Categories available when reporting an incident."
@@ -1907,6 +1941,78 @@ function SettingsPanel({ settings, updateSettings, toast }) {
       {section === "gear" && <GearItemsSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
       {section === "talks" && <TalkTopicsSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
       {section === "company" && <CompanyInfoSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
+    </div>
+  );
+}
+
+// Per-hazard editor: each hazard type has a name + its own saved control measures.
+function HazardTypesSettings({ settings, updateSettings, toast }) {
+  const [newHaz, setNewHaz] = useState("");
+  const [openIdx, setOpenIdx] = useState(null);
+  const [newControl, setNewControl] = useState("");
+  // Normalise every entry to { name, controls } so old string data still works.
+  const list = (settings.hazardTypes || []).map((h) =>
+    typeof h === "string" ? { name: h, controls: [] } : { name: h.name || "", controls: Array.isArray(h.controls) ? h.controls : [] }
+  );
+  const commit = (next) => updateSettings({ hazardTypes: next });
+
+  const addHazard = () => {
+    if (!newHaz.trim()) return;
+    commit([...list, { name: newHaz.trim(), controls: [] }]);
+    setNewHaz("");
+    toast("✅ Hazard added");
+  };
+  const removeHazard = (i) => { commit(list.filter((_, idx) => idx !== i)); if (openIdx === i) setOpenIdx(null); };
+  const renameHazard = (i, name) => commit(list.map((h, idx) => idx === i ? { ...h, name } : h));
+  const addControl = (i) => {
+    if (!newControl.trim()) return;
+    commit(list.map((h, idx) => idx === i ? { ...h, controls: [...h.controls, newControl.trim()] } : h));
+    setNewControl("");
+  };
+  const removeControl = (i, ci) => commit(list.map((h, idx) => idx === i ? { ...h, controls: h.controls.filter((_, x) => x !== ci) } : h));
+
+  return (
+    <div className="tm-card">
+      <div className="tm-card-title"><span>⚠️</span> Hazards & Control Measures</div>
+      <p className="tm-text-mid" style={{ marginBottom: 12, fontSize: 12 }}>These appear as tick-boxes on every hazard sheet. Tap a hazard to edit its saved control measures — those become one-tap suggestions (and pre-fill) when the hazard is ticked.</p>
+
+      {list.map((h, i) => (
+        <div key={i} className={"tm-jobpill" + (openIdx === i ? " open" : "")} style={{ marginBottom: 8 }}>
+          <div className="tm-jobpill-head" onClick={() => setOpenIdx(openIdx === i ? null : i)}>
+            <span className="tm-jobpill-icon">⚠️</span>
+            <div style={{ flex: 1 }}>
+              <div className="tm-jobpill-title" style={{ fontSize: 14 }}>{h.name}</div>
+              <div className="tm-jobpill-count">{h.controls.length} control{h.controls.length === 1 ? "" : "s"}</div>
+            </div>
+            <span className="tm-jobpill-chev">›</span>
+          </div>
+          {openIdx === i && (
+            <div className="tm-jobpill-body" style={{ paddingTop: 10 }}>
+              <label className="tm-label">Hazard name</label>
+              <input className="tm-input" value={h.name} onChange={(e) => renameHazard(i, e.target.value)} />
+              <label className="tm-label">Saved control measures</label>
+              {!h.controls.length && <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 8 }}>None yet — add the controls you'd usually apply for this hazard.</p>}
+              {h.controls.map((c, ci) => (
+                <div className="tm-editable-row" key={ci}>
+                  <input className="tm-input" style={{ flex: 1, marginBottom: 0 }} value={c}
+                    onChange={(e) => commit(list.map((hz, idx) => idx === i ? { ...hz, controls: hz.controls.map((x, xi) => xi === ci ? e.target.value : x) } : hz))} />
+                  <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => removeControl(i, ci)}>✕</button>
+                </div>
+              ))}
+              <div className="tm-flex tm-mt-8" style={{ gap: 8 }}>
+                <input className="tm-input" style={{ marginBottom: 0, flex: 1 }} value={openIdx === i ? newControl : ""} onChange={(e) => setNewControl(e.target.value)} placeholder="e.g. Exclusion zone set up" onKeyDown={(e) => e.key === "Enter" && addControl(i)} />
+                <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={() => addControl(i)}>+</button>
+              </div>
+              <button className="tm-btn tm-btn-danger tm-btn-sm tm-mt-8" onClick={() => removeHazard(i)}>Remove hazard</button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="tm-flex tm-mt-8" style={{ gap: 8 }}>
+        <input className="tm-input" style={{ marginBottom: 0, flex: 1 }} value={newHaz} onChange={(e) => setNewHaz(e.target.value)} placeholder="e.g. 🐜 Termite damage" onKeyDown={(e) => e.key === "Enter" && addHazard()} />
+        <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={addHazard}>+ Hazard</button>
+      </div>
     </div>
   );
 }
