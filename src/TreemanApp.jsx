@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { buildHazardPdf, buildIncidentPdf, sharePdf, printPdf, pdfFilename } from "./pdf";
 
 /**
  * The Treeman — Field Ops (Mobile-first edition)
@@ -15,7 +16,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
  *   treeman-icon-512.png, treeman-icon-192.png, apple-touch-icon.png
  */
 
-const STORAGE_KEY = "treeman_v7";
+const STORAGE_KEY = "treeman_v8";
 
 const LOGO_B64 = "data:image/jpeg;base64,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";
 const ICON_B64 = "data:image/png;base64,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";
@@ -52,14 +53,6 @@ export const DEFAULT_SETTINGS = {
     { id: "pole", icon: "🪚", name: "Pole Saw" },
     { id: "hi-vis", icon: "🟡", name: "Hi-Vis Vest" },
   ],
-  equipmentList: [
-    "Chainsaw — Husqvarna 550XP", "Chainsaw — Stihl MS400",
-    "Chipper — Vermeer BC1000XL", "Aerial Lift / EWP",
-    "Climbing Harness Set A", "Climbing Harness Set B",
-    "Rigging System / Blocks", "Stump Grinder",
-    "Ute / Truck — Fleet 1", "Ute / Truck — Fleet 2",
-    "First Aid Kit — Site", "First Aid Kit — Vehicle",
-  ],
   talkTopics: [
     { icon: "🪓", title: "Chainsaw Safety", points: "Always engage chain brake when not cutting. Never cut above shoulder height. Check chain tension and sharpness before use. Wear full PPE including chaps and face shield. Plan your escape route before each cut. Never work alone when chainsawing." },
     { icon: "🧗", title: "Working at Height — Climbing", points: "Inspect harness, rope, and all connections before climbing. Two-point anchor at all times above 3m. Never tie off to dead or suspect limbs. Communication with ground crew must be continuous. Establish exclusion zones below the climbing zone before ascending." },
@@ -69,18 +62,6 @@ export const DEFAULT_SETTINGS = {
     { icon: "🏗️", title: "Chipper Safety", points: "Never reach into the chipper feed zone. Keep limbs below shoulder height when feeding. Stand to the side, never in front of discharge. Secure long hair and loose clothing. Never clear blockages without full lockout." },
     { icon: "📞", title: "Site Comms & Emergency Plan", points: "Confirm first aider, nearest hospital, and charged phones before starting. Establish hand signals for chainsaw noise. In an emergency: stop work, secure area, call 111, treat casualty, report to supervisor." },
     { icon: "☀️", title: "Fatigue & Heat Management", points: "Take regular breaks in shade. Hydrate frequently — at least 1L/hr in summer. Rotate crew on physically intense tasks. Speak up if tired, unwell, or stressed." },
-  ],
-  quoteServices: [
-    { name: "Tree Removal & Felling", rate: 0 },
-    { name: "Crown Pruning", rate: 0 },
-    { name: "Canopy Lift", rate: 0 },
-    { name: "Hedge Trimming", rate: 0 },
-    { name: "Palm Removal / Trimming", rate: 0 },
-    { name: "Stump Grinding", rate: 0 },
-    { name: "Powerline Clearance", rate: 0 },
-    { name: "Emergency Callout", rate: 0 },
-    { name: "Arborist Report", rate: 0 },
-    { name: "Waste / Green Waste Removal", rate: 0 },
   ],
   incidentTypes: [
     "🩹 Injury — First Aid", "🚑 Injury — Medical Treatment", "🏥 Injury — Serious / Notifiable",
@@ -96,11 +77,11 @@ export const DEFAULT_SETTINGS = {
     gstRate: 15,
   },
   darkMode: false,
-  navSlots: ["dashboard", "crew", "jobs", "toolbox", "more"],
+  navSlots: ["dashboard", "hazard", "incidents", "crew", "more"],
 };
 
 export const DEFAULT_STATE = {
-  jobs: [], hazards: [], incidents: [], gearLog: [], maintenance: [], crew: [], talks: [], quotes: [],
+  hazards: [], incidents: [], gearLog: [], crew: [], talks: [],
   settings: DEFAULT_SETTINGS,
 };
 
@@ -124,35 +105,17 @@ function uid() { return Date.now() + Math.random().toString(36).slice(2, 8); }
 function fmtDateTime(ts) { return new Date(ts).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function fmtMoney(n) { return (Number(n) || 0).toLocaleString("en-NZ", { style: "currency", currency: "NZD" }); }
 function today() { return new Date().toISOString().split("T")[0]; }
-function jobLabel(job) { return job ? (job.name || job.client || job.site || "Untitled job") : ""; }
-function findJob(state, id) { return id ? state.jobs.find((j) => j.id === id) : null; }
 function crewName(c) { return c ? `${c.first} ${c.last}`.trim() : ""; }
 function findCrew(state, id) { return id ? state.crew.find((c) => c.id === id) : null; }
 function initials(name) { return (name || "").split(" ").filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase(); }
-// Jobs a crew member (by id) is assigned to.
-function jobsForCrew(state, crewId) { return state.jobs.filter((j) => (j.crewIds || []).includes(crewId)); }
 
-// Job lifecycle pipeline. Order matters — used for progress + "next step" buttons.
-const JOB_STATUSES = [
-  { id: "needs_quote", label: "Needs Quote", icon: "📝", badge: "tm-badge-grey" },
-  { id: "quoted",      label: "Quoted",      icon: "💷", badge: "tm-badge-amber" },
-  { id: "accepted",    label: "Accepted",    icon: "🤝", badge: "tm-badge-amber" },
-  { id: "active",      label: "Active / Scheduled", icon: "🚜", badge: "tm-badge-green" },
-  { id: "complete",    label: "Complete",    icon: "✅", badge: "tm-badge-green" },
-];
-function statusMeta(id) { return JOB_STATUSES.find((s) => s.id === id) || JOB_STATUSES[0]; }
-function nextStatus(id) {
-  const i = JOB_STATUSES.findIndex((s) => s.id === id);
-  return i >= 0 && i < JOB_STATUSES.length - 1 ? JOB_STATUSES[i + 1] : null;
-}
-
-// All sections that can occupy a configurable nav slot (Jobs is fixed centre).
+// All sections that can occupy a configurable nav slot.
 const NAV_SECTIONS = [
   { id: "dashboard", icon: "🏠", label: "Home" },
-  { id: "crew", icon: "👷", label: "Crew" },
+  { id: "hazard", icon: "⚠️", label: "Hazards" },
   { id: "incidents", icon: "🚨", label: "Incidents" },
+  { id: "crew", icon: "👷", label: "Crew" },
   { id: "gear", icon: "🧤", label: "PPE" },
-  { id: "maintenance", icon: "🔧", label: "Maint" },
   { id: "toolbox", icon: "📋", label: "Toolbox" },
   { id: "settings", icon: "⚙️", label: "Settings" },
   { id: "more", icon: "☰", label: "More" },
@@ -765,7 +728,6 @@ export default function TreemanApp({ initialState, onPersist }) {
   }, [onPersist]);
   const [tab, setTab] = useState("dashboard");
   const [moreOpen, setMoreOpen] = useState(false);
-  const [activeJobId, setActiveJobId] = useState(null);
   const [toastMsg, setToastMsg] = useState("");
   const [toastShow, setToastShow] = useState(false);
   const [toastToken, setToastToken] = useState(0); // bumps on each toast() call
@@ -803,20 +765,19 @@ export default function TreemanApp({ initialState, onPersist }) {
   const dark = state.settings.darkMode;
 
   // Fully configurable 5-slot nav. Middle slot (index 2) gets the raised centre styling.
-  const defaultSlots = ["dashboard", "crew", "jobs", "toolbox", "more"];
+  const defaultSlots = ["dashboard", "hazard", "incidents", "crew", "more"];
   const slots = (state.settings.navSlots && state.settings.navSlots.length === 5)
     ? state.settings.navSlots : defaultSlots;
-  const sectionMeta = (id) => (id === "jobs" ? { id: "jobs", icon: "🌲", label: "Jobs" } : (NAV_SECTIONS.find((s) => s.id === id) || { id, icon: "•", label: id }));
+  const sectionMeta = (id) => (NAV_SECTIONS.find((s) => s.id === id) || { id, icon: "•", label: id });
   const NAV = slots.map(sectionMeta);
   // Anything not in a slot shows in More.
   const inSlots = new Set(slots);
-  const MORE_ITEMS = [{ id: "jobs", icon: "🌲", label: "Jobs" }, ...NAV_SECTIONS].filter((s) => s.id !== "more" && !inSlots.has(s.id));
+  const MORE_ITEMS = NAV_SECTIONS.filter((s) => s.id !== "more" && !inSlots.has(s.id));
 
   const goTab = (id) => {
     if (id === "more") { setMoreOpen(true); return; }
     setTab(id);
     setMoreOpen(false);
-    setActiveJobId(null);
     window.scrollTo({ top: 0 });
   };
 
@@ -825,7 +786,7 @@ export default function TreemanApp({ initialState, onPersist }) {
     return tab === id;
   };
 
-  const panelProps = { state, setState, toast, confirm, setFabAction, activeJobId, setActiveJobId, goTab };
+  const panelProps = { state, setState, toast, confirm, setFabAction };
 
   return (
     <div className={"tm-root" + (dark ? " dark" : "")}>
@@ -837,7 +798,7 @@ export default function TreemanApp({ initialState, onPersist }) {
         </a>
         <div className="tm-header-spacer" />
         <div className="tm-clock">{clock}</div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v18</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-dim)", marginLeft: 6, opacity: 0.7 }}>v21</span>
         <button
           className="tm-theme-btn"
           onClick={() => updateSettings({ darkMode: !dark })}
@@ -847,12 +808,11 @@ export default function TreemanApp({ initialState, onPersist }) {
         </button>
       </header>
 
-      {tab === "dashboard" && <DashboardPanel state={state} goTab={goTab} openJob={(id) => { setActiveJobId(id); setTab("jobs"); }} />}
-      {tab === "jobs" && <JobsPanel {...panelProps} />}
+      {tab === "dashboard" && <DashboardPanel state={state} goTab={goTab} />}
+      {tab === "hazard" && <HazardsPanel {...panelProps} />}
+      {tab === "incidents" && <IncidentsPanel {...panelProps} />}
       {tab === "gear" && <GearPanel {...panelProps} />}
-      {tab === "maintenance" && <MaintenancePanel {...panelProps} />}
-      {tab === "crew" && <CrewPanel {...panelProps} openJob={(id) => { setActiveJobId(id); setTab("jobs"); }} />}
-      {tab === "incidents" && <IncidentsPanel {...panelProps} openJob={(id) => { setActiveJobId(id); setTab("jobs"); }} />}
+      {tab === "crew" && <CrewPanel {...panelProps} />}
       {tab === "toolbox" && <ToolboxPanel {...panelProps} />}
       {tab === "settings" && <SettingsPanel settings={state.settings} updateSettings={updateSettings} toast={toast} />}
 
@@ -907,20 +867,15 @@ function DashboardPanel({ state, goTab, openJob }) {
   const greet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
   const dateStr = now.toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
 
-  const activeJobs = state.jobs.filter((j) => j.status !== "complete").length;
   const openHazards = state.hazards.filter((x) => x.status === "open").length;
   const openIncidents = state.incidents.filter((x) => x.status !== "closed").length;
-  const dueMaint = state.maintenance.filter((m) => m.nextDue && new Date(m.nextDue) <= now).length;
-  const quotesWon = state.quotes.filter((q) => q.status === "accepted").length;
+  const crewCount = state.crew.length;
 
   const activity = [
-    ...state.jobs.map((j) => ({ ts: j.ts, text: "Job — " + jobLabel(j), icon: "🌲" })),
     ...state.hazards.map((x) => ({ ts: x.ts, text: "Hazard sheet — " + (x.site || "Unknown site"), icon: "⚠️" })),
     ...state.incidents.map((x) => ({ ts: x.ts, text: "Incident — " + (x.type || "Report"), icon: "🚨" })),
     ...state.gearLog.map((g) => ({ ts: g.ts, text: "PPE logged — " + g.crew, icon: "🧤" })),
-    ...state.maintenance.map((m) => ({ ts: m.ts, text: "Serviced: " + m.equip, icon: "🔧" })),
     ...state.talks.map((t) => ({ ts: t.ts, text: "Toolbox: " + t.title, icon: "📋" })),
-    ...state.quotes.map((q) => ({ ts: q.ts, text: "Quote — " + q.client, icon: "💷" })),
   ].sort((a, b) => b.ts - a.ts).slice(0, 6);
 
   return (
@@ -946,20 +901,15 @@ function DashboardPanel({ state, goTab, openJob }) {
 
       {/* Bento grid */}
       <div className="tm-bento">
-        <div className="tm-bento-tile accent wide" onClick={() => goTab("jobs")}>
+        <div className="tm-bento-tile accent wide" onClick={() => goTab("hazard")}>
           <div className="tm-flex-between">
-            <span className="tm-bento-icon">🌲</span>
-            <span className="tm-bento-num">{activeJobs}</span>
+            <span className="tm-bento-icon">⚠️</span>
+            <span className="tm-bento-num">{openHazards}</span>
           </div>
           <div>
-            <div className="tm-bento-label">Active Jobs</div>
-            <div className="tm-bento-sub">Everything ties back to a job — tap to manage</div>
+            <div className="tm-bento-label">Open Hazard Sheets</div>
+            <div className="tm-bento-sub">Tap to review or start a new one</div>
           </div>
-        </div>
-
-        <div className="tm-bento-tile" onClick={() => goTab("jobs")}>
-          <span className="tm-bento-icon">⚠️</span>
-          <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{openHazards}</div><div className="tm-bento-label">Open Hazards</div></div>
         </div>
 
         <div className="tm-bento-tile" onClick={() => goTab("incidents")}>
@@ -967,14 +917,14 @@ function DashboardPanel({ state, goTab, openJob }) {
           <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{openIncidents}</div><div className="tm-bento-label">Incidents</div></div>
         </div>
 
-        <div className="tm-bento-tile" onClick={() => goTab("jobs")}>
-          <span className="tm-bento-icon">💷</span>
-          <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{quotesWon}</div><div className="tm-bento-label">Quotes Won</div></div>
+        <div className="tm-bento-tile" onClick={() => goTab("crew")}>
+          <span className="tm-bento-icon">👷</span>
+          <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{crewCount}</div><div className="tm-bento-label">Crew</div></div>
         </div>
 
-        <div className="tm-bento-tile" onClick={() => goTab("maintenance")}>
-          <span className="tm-bento-icon">🔧</span>
-          <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{dueMaint}</div><div className="tm-bento-label">Maint. Due</div></div>
+        <div className="tm-bento-tile" onClick={() => goTab("gear")}>
+          <span className="tm-bento-icon">🧤</span>
+          <div><div className="tm-bento-num" style={{ fontSize: 30 }}>{state.gearLog.length}</div><div className="tm-bento-label">PPE Logs</div></div>
         </div>
       </div>
 
@@ -1001,9 +951,9 @@ function DashboardPanel({ state, goTab, openJob }) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  JOBS PANEL — the hub. Everything is created and lives inside a job.
+//  Collapsible section (used in Crew detail)
 // ══════════════════════════════════════════════════════════════
-function JobPill({ icon, title, count, open, onToggle, onAdd, addLabel, noAdd, children }) {
+function Collapsible({ icon, title, count, open, onToggle, children }) {
   return (
     <div className={"tm-jobpill" + (open ? " open" : "")}>
       <div className="tm-jobpill-head" onClick={onToggle}>
@@ -1012,7 +962,6 @@ function JobPill({ icon, title, count, open, onToggle, onAdd, addLabel, noAdd, c
           <div className="tm-jobpill-title">{title}</div>
           <div className="tm-jobpill-count">{count}</div>
         </div>
-        {!noAdd && <button className="tm-jobpill-add" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={addLabel || ("Add " + title)}>+</button>}
         <span className="tm-jobpill-chev">›</span>
       </div>
       {open && <div className="tm-jobpill-body">{children}</div>}
@@ -1020,527 +969,75 @@ function JobPill({ icon, title, count, open, onToggle, onAdd, addLabel, noAdd, c
   );
 }
 
-function JobsPanel({ state, setState, toast, confirm, setFabAction, activeJobId, setActiveJobId, goTab }) {
-  const [jobSheetOpen, setJobSheetOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+// ══════════════════════════════════════════════════════════════
+//  HAZARDS PANEL — standalone site hazard sheets (not tied to a job)
+// ══════════════════════════════════════════════════════════════
+function HazardsPanel({ state, setState, toast, confirm, setFabAction }) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [viewId, setViewId] = useState(null);
+  const [editRec, setEditRec] = useState(null);
 
-  // which add-form is open inside a job
-  const [addForm, setAddForm] = useState(null); // 'quote' | 'hazard' | 'incident' | 'crew' | null
-  const [viewRec, setViewRec] = useState(null);  // { kind, rec }
-  const [editIncident, setEditIncident] = useState(null);
-  const [editHazard, setEditHazard] = useState(null);
-  const [openSection, setOpenSection] = useState(null); // 'quotes'|'hazards'|'incidents'|'crew'
-
-  // start-date prompt when scheduling
-  const [schedFor, setSchedFor] = useState(null);
-  const [schedDate, setSchedDate] = useState(today);
-
-  const openNewJob = useCallback(() => {
-    setEditing(null);
-    setJobSheetOpen(true);
-  }, []);
-
+  const openNew = useCallback(() => setAddOpen(true), []);
   useEffect(() => {
-    // FAB creates a new job from the list; inside a job it's hidden (job has its own add buttons)
-    if (!activeJobId) setFabAction({ label: "New job", onClick: openNewJob });
-    else setFabAction(null);
+    setFabAction({ label: "New hazard sheet", onClick: openNew });
     return () => setFabAction(null);
-  }, [setFabAction, openNewJob, activeJobId]);
+  }, [setFabAction, openNew]);
 
-  const saveJob = (data) => {
-    if (editing) {
-      setState((st) => ({ ...st, jobs: st.jobs.map((j) => j.id === editing.id ? { ...j, ...data } : j) }));
-      toast("✅ Job updated");
-    } else {
-      const record = { id: uid(), ts: Date.now(), status: "needs_quote", crewIds: [], ...data };
-      setState((st) => ({ ...st, jobs: [record, ...st.jobs] }));
-      toast("✅ Job created");
-    }
-    setJobSheetOpen(false);
-  };
-
-  const setJobStatus = (id, status, extra = {}) => {
-    setState((st) => ({ ...st, jobs: st.jobs.map((j) => j.id === id ? { ...j, status, ...extra } : j) }));
-  };
-
-  const setJobCrew = (id, crewIds) => {
-    setState((st) => ({ ...st, jobs: st.jobs.map((j) => j.id === id ? { ...j, crewIds } : j) }));
-  };
-
-  const advanceStatus = (job) => {
-    const nxt = nextStatus(job.status);
-    if (!nxt) return;
-    // Scheduling → ask for a start date
-    if (nxt.id === "active") { setSchedFor(job); setSchedDate(job.startDate || today()); return; }
+  const deleteHazard = (id) => {
     confirm({
-      title: `Move to ${nxt.label}?`,
-      message: `"${jobLabel(job)}" will be marked as ${nxt.label}.`,
-      confirmLabel: "Move",
-      onYes: () => { setJobStatus(job.id, nxt.id); toast(`${nxt.icon} ${nxt.label}`); },
-    });
-  };
-
-  const goBackStatus = (job) => {
-    const prev = JOB_STATUSES[JOB_STATUSES.findIndex((s) => s.id === job.status) - 1];
-    if (!prev) return;
-    confirm({
-      title: `Move back to ${prev.label}?`,
-      confirmLabel: "Move back",
-      onYes: () => { setJobStatus(job.id, prev.id); toast("Moved back"); },
-    });
-  };
-
-  const confirmSchedule = () => {
-    setJobStatus(schedFor.id, "active", { startDate: schedDate });
-    toast("🚜 Scheduled");
-    setSchedFor(null);
-  };
-
-  const removeJob = (id) => {
-    const linked = state.hazards.filter((h) => h.jobId === id).length
-      + state.incidents.filter((x) => x.jobId === id).length
-      + state.quotes.filter((q) => q.jobId === id).length;
-    confirm({
-      title: "Delete this job?",
-      message: linked > 0 ? `${linked} linked record(s) (quotes, hazards, incidents) will be deleted too. This can't be undone.` : "This can't be undone.",
-      danger: true, confirmLabel: "Delete",
+      title: "Delete this hazard sheet?", danger: true, confirmLabel: "Delete",
       onYes: () => {
-        setState((st) => ({
-          ...st,
-          jobs: st.jobs.filter((j) => j.id !== id),
-          hazards: st.hazards.filter((h) => h.jobId !== id),
-          incidents: st.incidents.filter((x) => x.jobId !== id),
-          quotes: st.quotes.filter((q) => q.jobId !== id),
-        }));
-        setActiveJobId(null);
-        toast("Job deleted");
+        setState((st) => ({ ...st, hazards: st.hazards.filter((r) => r.id !== id) }));
+        setViewId(null);
+        toast("Hazard sheet deleted");
       },
     });
   };
 
-  const deleteRecord = (kind, recId) => {
-    const key = kind === "quote" ? "quotes" : kind === "hazard" ? "hazards" : "incidents";
-    confirm({
-      title: `Delete this ${kind}?`, danger: true, confirmLabel: "Delete",
-      onYes: () => {
-        setState((st) => ({ ...st, [key]: st[key].filter((r) => r.id !== recId) }));
-        setViewRec(null);
-        toast(`${kind[0].toUpperCase() + kind.slice(1)} deleted`);
-      },
-    });
-  };
-
-  // ════════ JOB DETAIL VIEW ════════
-  const activeJob = findJob(state, activeJobId);
-  if (activeJob) {
-    const jobHazards = state.hazards.filter((h) => h.jobId === activeJob.id);
-    const jobIncidents = state.incidents.filter((x) => x.jobId === activeJob.id);
-    const jobQuotes = state.quotes.filter((q) => q.jobId === activeJob.id);
-    const quotedTotal = jobQuotes.reduce((s, q) => s + (q.total || 0), 0);
-    const sm = statusMeta(activeJob.status);
-    const nxt = nextStatus(activeJob.status);
-    // crew assigned to this job, referenced by id
-    const jobCrewIds = activeJob.crewIds || [];
-    const jobCrew = jobCrewIds.map((id) => findCrew(state, id)).filter(Boolean);
-
-    return (
-      <div className="tm-panel">
-        <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => setActiveJobId(null)} style={{ marginBottom: 14 }}>‹ All Jobs</button>
-
-        {/* Job header + pipeline */}
-        <div className="tm-card">
-          <div className="tm-flex-between">
-            <div className="tm-card-title" style={{ margin: 0 }}><span>🌲</span> {jobLabel(activeJob)}</div>
-            <span className={"tm-badge " + sm.badge}>{sm.icon} {sm.label}</span>
-          </div>
-          <div className="tm-text-mid" style={{ marginTop: 8, lineHeight: 1.7, fontSize: 13 }}>
-            {activeJob.client && <div>👤 {activeJob.client}</div>}
-            {activeJob.site && <div>📍 {activeJob.site}</div>}
-            {activeJob.phone && <div>📞 {activeJob.phone}</div>}
-            {activeJob.jobType && <div>🌳 {activeJob.jobType}</div>}
-            {activeJob.status === "active" && activeJob.startDate && <div>📅 Scheduled {activeJob.startDate}</div>}
-            {activeJob.notes && <div style={{ marginTop: 6, fontStyle: "italic" }}>{activeJob.notes}</div>}
-          </div>
-
-          {/* Pipeline progress dots */}
-          <div style={{ display: "flex", gap: 4, marginTop: 14 }}>
-            {JOB_STATUSES.map((s) => {
-              const idx = JOB_STATUSES.findIndex((x) => x.id === activeJob.status);
-              const here = JOB_STATUSES.findIndex((x) => x.id === s.id);
-              const done = here <= idx;
-              return <div key={s.id} title={s.label} style={{ flex: 1, height: 6, borderRadius: 3, background: done ? "var(--green-mid)" : "var(--border)" }} />;
-            })}
-          </div>
-
-          {/* State-change buttons */}
-          <div className="tm-flex" style={{ gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-            {nxt && (
-              <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={() => advanceStatus(activeJob)}>
-                {nxt.icon} Move to {nxt.label} ›
-              </button>
-            )}
-            {activeJob.status !== "needs_quote" && (
-              <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => goBackStatus(activeJob)}>‹ Back</button>
-            )}
-          </div>
-          <div className="tm-flex" style={{ gap: 8, marginTop: 10 }}>
-            <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => { setEditing(activeJob); setJobSheetOpen(true); }}>Edit</button>
-            <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => removeJob(activeJob.id)}>Delete Job</button>
-          </div>
-        </div>
-
-        {/* ── One expandable pill per section. Tap header to expand, + to add. ── */}
-        <JobPill
-          icon="💷" title="Quotes"
-          count={`${jobQuotes.length} · ${fmtMoney(quotedTotal)}`}
-          open={openSection === "quotes"}
-          onToggle={() => setOpenSection(openSection === "quotes" ? null : "quotes")}
-          onAdd={() => setAddForm("quote")}
-        >
-          {!jobQuotes.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No quotes yet.</p> : jobQuotes.map((qq) => {
-            const b = qq.status === "accepted" ? "tm-badge-green" : qq.status === "declined" ? "tm-badge-red" : qq.status === "sent" ? "tm-badge-amber" : "tm-badge-grey";
-            return (
-              <div className="tm-record-item" key={qq.id} onClick={() => setViewRec({ kind: "quote", rec: qq })} style={{ cursor: "pointer" }}>
-                <div className="tm-record-icon">💷</div>
-                <div className="tm-record-body">
-                  <div className="tm-record-title">{fmtMoney(qq.total)}</div>
-                  <div className="tm-record-meta">{qq.date} · <span className={"tm-badge " + b}>{qq.status}</span></div>
-                </div>
-                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
-              </div>
-            );
-          })}
-        </JobPill>
-
-        <JobPill
-          icon="⚠️" title="Hazard Sheets"
-          count={`${jobHazards.length} sheet${jobHazards.length === 1 ? "" : "s"}`}
-          open={openSection === "hazards"}
-          onToggle={() => setOpenSection(openSection === "hazards" ? null : "hazards")}
-          onAdd={() => setAddForm("hazard")}
-        >
-          {!jobHazards.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No hazard sheets yet.</p> : jobHazards.map((h) => {
-            const label = h.risk === "high" ? "🔴 High" : h.risk === "med" ? "🟡 Medium" : "🟢 Low";
-            const signed = h.signers.filter((s) => s.signed).length;
-            return (
-              <div className="tm-record-item" key={h.id} onClick={() => setViewRec({ kind: "hazard", rec: h })} style={{ cursor: "pointer" }}>
-                <div className="tm-record-icon">⚠️</div>
-                <div className="tm-record-body">
-                  <div className="tm-record-title">{h.site || "Hazard sheet"}</div>
-                  <div className="tm-record-meta">{h.date} · {label} · {signed}/{h.signers.length} signed</div>
-                </div>
-                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
-              </div>
-            );
-          })}
-        </JobPill>
-
-        <JobPill
-          icon="🚨" title="Incidents"
-          count={jobIncidents.length ? `${jobIncidents.length} report${jobIncidents.length === 1 ? "" : "s"}` : "None 🌿"}
-          open={openSection === "incidents"}
-          onToggle={() => setOpenSection(openSection === "incidents" ? null : "incidents")}
-          onAdd={() => setAddForm("incident")}
-        >
-          {!jobIncidents.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No incidents on this job. 🌿</p> : jobIncidents.map((x) => {
-            const sb = x.severity === "high" ? "tm-badge-red" : x.severity === "med" ? "tm-badge-amber" : "tm-badge-green";
-            return (
-              <div className="tm-record-item" key={x.id} onClick={() => setViewRec({ kind: "incident", rec: x })} style={{ cursor: "pointer" }}>
-                <div className="tm-record-icon">🚨</div>
-                <div className="tm-record-body">
-                  <div className="tm-record-title">{x.type}</div>
-                  <div className="tm-record-meta">{x.date} {x.time} · <span className={"tm-badge " + sb}>{x.severity}</span></div>
-                </div>
-                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
-              </div>
-            );
-          })}
-        </JobPill>
-
-        <JobPill
-          icon="👷" title="Assigned Crew"
-          count={jobCrew.length ? `${jobCrew.length} on the job` : "None assigned"}
-          open={openSection === "crew"}
-          onToggle={() => setOpenSection(openSection === "crew" ? null : "crew")}
-          onAdd={() => setAddForm("crew")}
-          addLabel="Assign"
-        >
-          {!jobCrew.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No crew assigned. Tap Assign — they'll be available to sign this job's hazard sheets.</p> : jobCrew.map((c) => (
-            <div className="tm-record-item" key={c.id}>
-              <div className="tm-crew-avatar">{initials(crewName(c))}</div>
-              <div className="tm-record-body">
-                <div className="tm-record-title">{crewName(c)}</div>
-                <div className="tm-record-meta">{c.role}</div>
-              </div>
-              <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => confirm({ title: "Remove from job?", message: `${crewName(c)} will be unassigned from this job.`, danger: true, confirmLabel: "Remove", onYes: () => setJobCrew(activeJob.id, jobCrewIds.filter((id) => id !== c.id)) })}>✕</button>
-            </div>
-          ))}
-        </JobPill>
-
-        {/* ── Add-forms as bottom sheets, jobId locked to this job ── */}
-        {addForm === "quote" && <QuoteForm state={state} setState={setState} toast={toast} jobId={activeJob.id} job={activeJob} onClose={() => setAddForm(null)}
-          onSaved={() => { setAddForm(null); setOpenSection("quotes"); if (activeJob.status === "needs_quote") setJobStatus(activeJob.id, "quoted"); }} />}
-        {addForm === "hazard" && <HazardForm state={state} setState={setState} toast={toast} jobId={activeJob.id} job={activeJob} onClose={() => setAddForm(null)} onSaved={() => { setAddForm(null); setOpenSection("hazards"); }} />}
-        {addForm === "incident" && <IncidentForm state={state} setState={setState} toast={toast} jobId={activeJob.id} job={activeJob} onClose={() => setAddForm(null)} onSaved={() => { setAddForm(null); setOpenSection("incidents"); }} />}
-        {addForm === "crew" && <AssignCrewSheet state={state} job={activeJob} onClose={() => setAddForm(null)} onSave={(ids) => { setJobCrew(activeJob.id, ids); setAddForm(null); setOpenSection("crew"); toast("✅ Crew assigned"); }} />}
-
-        {/* Incident edit form (opened from the incident viewer) */}
-        {editIncident && <IncidentForm state={state} setState={setState} toast={toast} editing={editIncident} job={activeJob} onClose={() => setEditIncident(null)} onSaved={() => setEditIncident(null)} />}
-        {editHazard && <HazardForm state={state} setState={setState} toast={toast} editing={editHazard} job={activeJob} onClose={() => setEditHazard(null)} onSaved={() => setEditHazard(null)} />}
-
-        {/* Record viewers */}
-        {viewRec && viewRec.kind === "quote" && <QuoteView state={state} setState={setState} rec={viewRec.rec} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("quote", viewRec.rec.id)} />}
-        {viewRec && viewRec.kind === "hazard" && !editHazard && (() => {
-          const live = state.hazards.find((h) => h.id === viewRec.rec.id) || viewRec.rec;
-          return <HazardView state={state} rec={live} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("hazard", viewRec.rec.id)} onEdit={(r) => setEditHazard(r)} />;
-        })()}
-        {viewRec && viewRec.kind === "incident" && !editIncident && (() => {
-          const live = state.incidents.find((x) => x.id === viewRec.rec.id) || viewRec.rec;
-          return <IncidentView state={state} setState={setState} rec={live} onClose={() => setViewRec(null)} onDelete={() => deleteRecord("incident", viewRec.rec.id)} onEdit={(r) => setEditIncident(r)} />;
-        })()}
-
-        <JobSheet open={jobSheetOpen} onClose={() => setJobSheetOpen(false)} editing={editing} onSave={saveJob} />
-
-        {/* schedule date prompt */}
-        <Sheet open={!!schedFor} onClose={() => setSchedFor(null)} title="🚜 Schedule Job">
-          <p className="tm-text-mid" style={{ marginBottom: 12 }}>Set the start date for <b>{schedFor && jobLabel(schedFor)}</b>.</p>
-          <label className="tm-label">Start Date</label>
-          <input className="tm-input" type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} />
-          <div className="tm-sheet-actions">
-            <button className="tm-btn tm-btn-outline" onClick={() => setSchedFor(null)}>Cancel</button>
-            <button className="tm-btn tm-btn-primary" onClick={confirmSchedule}>Schedule</button>
-          </div>
-        </Sheet>
-      </div>
-    );
-  }
-
-  // ════════ JOBS LIST VIEW ════════
-  const counts = (id) => ({
-    h: state.hazards.filter((x) => x.jobId === id).length,
-    i: state.incidents.filter((x) => x.jobId === id).length,
-    q: state.quotes.filter((x) => x.jobId === id).length,
-  });
-
-  const q = search.trim().toLowerCase();
-  const filtered = state.jobs.filter((j) => {
-    if (filter !== "all" && j.status !== filter) return false;
-    if (!q) return true;
-    return [j.name, j.client, j.site, j.phone, statusMeta(j.status).label].filter(Boolean).some((v) => v.toLowerCase().includes(q));
-  });
-
-  const FILTERS = [{ id: "all", label: "All" }, ...JOB_STATUSES.map((s) => ({ id: s.id, label: s.label }))];
+  const all = [...state.hazards].sort((a, b) => b.ts - a.ts);
+  const viewRec = viewId ? state.hazards.find((x) => x.id === viewId) : null;
+  const riskBadge = (r) => r === "high" ? "tm-badge-red" : r === "med" ? "tm-badge-amber" : "tm-badge-green";
+  const riskLabel = (r) => r === "high" ? "🔴 High" : r === "med" ? "🟡 Medium" : "🟢 Low";
 
   return (
     <div className="tm-panel">
-      <div className="tm-section-head">Jobs</div>
-
-      {/* Search */}
-      <div style={{ position: "relative", marginBottom: 10 }}>
-        <input className="tm-input" style={{ marginBottom: 0, paddingLeft: 40 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client, site, name..." />
-        <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, opacity: 0.5 }}>🔍</span>
-        {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", fontSize: 16, cursor: "pointer", color: "var(--text-dim)" }}>✕</button>}
-      </div>
-
-      {/* Status filter pills */}
-      <div className="tm-settings-nav" style={{ marginBottom: 14 }}>
-        {FILTERS.map((f) => {
-          const n = f.id === "all" ? state.jobs.length : state.jobs.filter((j) => j.status === f.id).length;
-          return (
-            <button key={f.id} className={"tm-settings-pill" + (filter === f.id ? " active" : "")} onClick={() => setFilter(f.id)}>
-              {f.label}{n > 0 ? ` (${n})` : ""}
-            </button>
-          );
-        })}
-      </div>
+      <div className="tm-section-head">Hazard Sheets</div>
+      <p className="tm-text-mid" style={{ marginBottom: 12, fontSize: 13 }}>
+        Site hazard identification & control. Tap + to start a new sheet, fill in the hazards and controls, and get the crew to sign on.
+      </p>
 
       <div className="tm-card">
-        {!state.jobs.length
-          ? <p className="tm-text-mid">No jobs yet — tap + to create your first. Everything (quotes, hazards, incidents, crew) lives inside a job.</p>
-          : !filtered.length
-            ? <p className="tm-text-mid">No jobs match your search.</p>
-            : filtered.map((j) => {
-              const c = counts(j.id);
-              const sm = statusMeta(j.status);
-              return (
-                <div className="tm-record-item" key={j.id} onClick={() => { setActiveJobId(j.id); window.scrollTo({ top: 0 }); }} style={{ cursor: "pointer" }}>
-                  <div className="tm-record-icon">🌲</div>
-                  <div className="tm-record-body">
-                    <div className="tm-record-title">{jobLabel(j)}</div>
-                    <div className="tm-record-meta">{j.site || j.client || "—"}{j.status === "active" && j.startDate ? " · 📅 " + j.startDate : ""}</div>
-                    <div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <span className={"tm-badge " + sm.badge}>{sm.icon} {sm.label}</span>
-                      {c.q > 0 && <span className="tm-badge tm-badge-grey">💷 {c.q}</span>}
-                      {c.h > 0 && <span className="tm-badge tm-badge-grey">⚠️ {c.h}</span>}
-                      {c.i > 0 && <span className="tm-badge tm-badge-red">🚨 {c.i}</span>}
-                    </div>
+        {!all.length
+          ? <p className="tm-text-mid">No hazard sheets yet. Tap + to create one.</p>
+          : all.map((h) => {
+            const signed = (h.signers || []).filter((s) => s.signed).length;
+            return (
+              <div className="tm-record-item" key={h.id} onClick={() => setViewId(h.id)} style={{ cursor: "pointer" }}>
+                <div className="tm-record-icon">⚠️</div>
+                <div className="tm-record-body">
+                  <div className="tm-record-title">{h.site || "Hazard sheet"}</div>
+                  <div className="tm-record-meta">{h.date}{h.lead ? " · " + h.lead : ""}</div>
+                  <div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span className={"tm-badge " + riskBadge(h.risk)}>{riskLabel(h.risk)}</span>
+                    <span className="tm-badge tm-badge-grey">{(h.hazards || []).length} hazard{(h.hazards || []).length === 1 ? "" : "s"}</span>
+                    <span className="tm-badge tm-badge-grey">{signed}/{(h.signers || []).length} signed</span>
                   </div>
-                  <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
                 </div>
-              );
-            })}
-      </div>
-
-      <JobSheet open={jobSheetOpen} onClose={() => setJobSheetOpen(false)} editing={editing} onSave={saveJob} />
-    </div>
-  );
-}
-
-/** Job create/edit bottom sheet (self-contained state) */
-/** Address field with free OpenStreetMap (Nominatim) autocomplete. No API key needed.
- *  Biased to New Zealand. Falls back to a plain text field if the lookup fails/offline. */
-function AddressInput({ value, onChange, label, placeholder }) {
-  const [results, setResults] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const timer = useRef(null);
-  const boxRef = useRef(null);
-  const skipNext = useRef(false);
-
-  useEffect(() => {
-    if (skipNext.current) { skipNext.current = false; return; }
-    if (timer.current) clearTimeout(timer.current);
-    const q = (value || "").trim();
-    if (q.length < 4) { setResults([]); setOpen(false); return; }
-    timer.current = setTimeout(async () => {
-      try {
-        setLoading(true);
-        const url = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=nz&limit=5&q=" + encodeURIComponent(q);
-        const res = await fetch(url, { headers: { "Accept-Language": "en-NZ" } });
-        const data = await res.json();
-        setResults(Array.isArray(data) ? data : []);
-        setOpen(true);
-      } catch (e) {
-        setResults([]); setOpen(false); // offline / blocked → silently behave as plain input
-      } finally {
-        setLoading(false);
-      }
-    }, 450); // debounce; Nominatim asks for <=1 req/sec
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [value]);
-
-  useEffect(() => {
-    const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const pick = (r) => {
-    skipNext.current = true; // don't re-search the value we just set
-    onChange(r.display_name);
-    setResults([]); setOpen(false);
-  };
-
-  return (
-    <div style={{ position: "relative", marginBottom: 12 }} ref={boxRef}>
-      {label && <label className="tm-label">{label}</label>}
-      <input
-        className="tm-input" style={{ marginBottom: 0 }}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => { if (results.length) setOpen(true); }}
-        placeholder={placeholder || "Start typing an address…"}
-        autoComplete="off"
-      />
-      {loading && <div style={{ position: "absolute", right: 12, top: label ? 38 : 14, fontSize: 12, color: "var(--text-dim)" }}>…</div>}
-      {open && results.length > 0 && (
-        <div style={{
-          position: "absolute", zIndex: 50, left: 0, right: 0, top: "100%", marginTop: 4,
-          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
-          boxShadow: "0 8px 24px var(--shadow-lg)", overflow: "hidden",
-        }}>
-          {results.map((r) => (
-            <div
-              key={r.place_id}
-              onClick={() => pick(r)}
-              style={{ padding: "11px 13px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--border)", lineHeight: 1.4 }}
-            >
-              📍 {r.display_name}
-            </div>
-          ))}
-          <div style={{ padding: "7px 13px", fontSize: 10, color: "var(--text-dim)" }}>Address data © OpenStreetMap</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function JobSheet({ open, onClose, editing, onSave }) {
-  const jobTypes = ["Tree Removal", "Crown Pruning", "Canopy Lift", "Hedge Trimming", "Palm Trimming / Removal", "Stump Grinding", "Emergency Response", "Arborist Report / Inspection", "Powerline Clearance", "Commercial", "Other"];
-  const [name, setName] = useState("");
-  const [client, setClient] = useState("");
-  const [site, setSite] = useState("");
-  const [phone, setPhone] = useState("");
-  const [jobType, setJobType] = useState("");
-  const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    setName(editing?.name || ""); setClient(editing?.client || ""); setSite(editing?.site || "");
-    setPhone(editing?.phone || ""); setJobType(editing?.jobType || ""); setNotes(editing?.notes || "");
-  }, [open, editing]);
-
-  const submit = () => {
-    if (!client.trim() && !name.trim() && !site.trim()) return; // validated by caller toast
-    onSave({ name, client, site, phone, jobType, notes });
-  };
-
-  return (
-    <Sheet open={open} onClose={onClose} title={editing ? "🌲 Edit Job" : "🌲 New Job"}>
-      <label className="tm-label">Job Name / Reference</label>
-      <input className="tm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Karaka phoenix palm removal" />
-      <div className="tm-row">
-        <div><label className="tm-label">Client</label><input className="tm-input" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Client name" /></div>
-        <div><label className="tm-label">Phone</label><input className="tm-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone" /></div>
-      </div>
-      <AddressInput value={site} onChange={setSite} label="Site Address" placeholder="Start typing an address…" />
-      <label className="tm-label">Job Type</label>
-      <select className="tm-select" value={jobType} onChange={(e) => setJobType(e.target.value)}>
-        <option value="">Select...</option>
-        {jobTypes.map((j) => <option key={j}>{j}</option>)}
-      </select>
-      <label className="tm-label">Notes</label>
-      <textarea className="tm-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Access, gate codes, special instructions..." />
-      {!editing && <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 8 }}>New jobs start at <b>Needs Quote</b>. Add a quote from inside the job, then move it along the pipeline.</p>}
-      <div className="tm-sheet-actions">
-        <button className="tm-btn tm-btn-outline" onClick={onClose}>Cancel</button>
-        <button className="tm-btn tm-btn-primary" onClick={submit}>{editing ? "Save Changes" : "Create Job"}</button>
-      </div>
-    </Sheet>
-  );
-}
-
-/** Assign crew to a job (multi-select from global crew list) */
-function AssignCrewSheet({ state, job, onClose, onSave }) {
-  const [sel, setSel] = useState(job.crewIds || []);
-  const toggle = (id) => setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
-  return (
-    <Sheet open onClose={onClose} title="👷 Assign Crew">
-      {!state.crew.length
-        ? <p className="tm-text-mid">No crew in the system yet. Add team members in the Crew section first.</p>
-        : (
-          <div className="tm-checkbox-grid">
-            {state.crew.map((c) => (
-              <div key={c.id} className={"tm-chk-item" + (sel.includes(c.id) ? " checked" : "")} onClick={() => toggle(c.id)}>
-                <div className="tm-chk-box">{sel.includes(c.id) ? "✓" : ""}</div>
-                <span>{crewName(c)} · {c.role}</span>
+                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
               </div>
-            ))}
-          </div>
-        )}
-      <div className="tm-sheet-actions">
-        <button className="tm-btn tm-btn-outline" onClick={onClose}>Cancel</button>
-        <button className="tm-btn tm-btn-primary" onClick={() => onSave(sel)}>Save</button>
+            );
+          })}
       </div>
-    </Sheet>
+
+      {addOpen && <HazardForm state={state} setState={setState} toast={toast} jobId={null} job={null} onClose={() => setAddOpen(false)} onSaved={() => setAddOpen(false)} />}
+      {editRec && <HazardForm state={state} setState={setState} toast={toast} editing={editRec} job={null} onClose={() => setEditRec(null)} onSaved={() => setEditRec(null)} />}
+      {viewRec && !editRec && <HazardView state={state} rec={viewRec} onClose={() => setViewId(null)} onDelete={() => deleteHazard(viewRec.id)} onEdit={(r) => setEditRec(r)} />}
+    </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════
-//  INCIDENTS PANEL — all incidents across every job + standalone ones.
-//  New incidents logged here are standalone (no job link).
+//  INCIDENTS PANEL — all incidents (standalone)
 // ══════════════════════════════════════════════════════════════
 function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -1581,7 +1078,7 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
     <div className="tm-panel">
       <div className="tm-section-head">Incidents</div>
       <p className="tm-text-mid" style={{ marginBottom: 12, fontSize: 13 }}>
-        Every incident across all jobs, plus any standalone ones. Tap + to log an incident that isn't tied to a job.
+        Injuries, near misses, damage and other incidents. Tap + to log one.
       </p>
 
       <div className="tm-settings-nav" style={{ marginBottom: 14 }}>
@@ -1596,7 +1093,6 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
         {!list.length
           ? <p className="tm-text-mid">No incidents{filter !== "all" ? " in this filter" : ""}. 🌿</p>
           : list.map((x) => {
-            const job = findJob(state, x.jobId);
             return (
               <div className="tm-record-item" key={x.id} onClick={() => setViewId(x.id)} style={{ cursor: "pointer" }}>
                 <div className="tm-record-icon">🚨</div>
@@ -1607,9 +1103,6 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
                     <span className={"tm-badge " + sevBadge(x.severity)}>{x.severity === "high" ? "🔴 Serious" : x.severity === "med" ? "🟡 Moderate" : "🟢 Minor"}</span>
                     {x.notifiable && <span className="tm-badge tm-badge-red">Notifiable</span>}
                     <span className={"tm-badge " + (x.status === "closed" ? "tm-badge-green" : "tm-badge-grey")}>{x.status === "closed" ? "Closed" : "Open"}</span>
-                    {job
-                      ? <span className="tm-badge tm-badge-grey">🌲 {jobLabel(job)}</span>
-                      : <span className="tm-badge tm-badge-grey">No job</span>}
                   </div>
                 </div>
                 <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
@@ -1619,7 +1112,7 @@ function IncidentsPanel({ state, setState, toast, confirm, setFabAction, openJob
       </div>
 
       {addOpen && <IncidentForm state={state} setState={setState} toast={toast} jobId={null} job={null} onClose={() => setAddOpen(false)} onSaved={() => setAddOpen(false)} />}
-      {editRec && <IncidentForm state={state} setState={setState} toast={toast} editing={editRec} job={findJob(state, editRec.jobId)} onClose={() => setEditRec(null)} onSaved={() => setEditRec(null)} />}
+      {editRec && <IncidentForm state={state} setState={setState} toast={toast} editing={editRec} job={null} onClose={() => setEditRec(null)} onSaved={() => setEditRec(null)} />}
       {viewRec && !editRec && <IncidentView state={state} setState={setState} rec={viewRec} onClose={() => setViewId(null)} onDelete={() => deleteIncident(viewRec.id)} openJob={openJob} onEdit={(r) => setEditRec(r)} />}
     </div>
   );
@@ -1730,6 +1223,9 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
   const fmtList = (val) => Array.isArray(val) ? val.join(", ") : val;
   const people = fmtList(v.peopleInvolved ?? v.personInvolved);
   const witnesses = fmtList(v.witnesses);
+  const company = state.settings.companyInfo || {};
+  const doShare = async () => { await sharePdf(await buildIncidentPdf(v, company), pdfFilename("incident", v)); };
+  const doPrint = async () => { printPdf(await buildIncidentPdf(v, company)); };
   return (
     <Sheet open onClose={onClose} title={"🚨 " + v.type}>
       <div style={{ fontSize: 14, lineHeight: 1.7 }}>
@@ -1740,13 +1236,6 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
         </div>
         <p><b>When:</b> {v.date} {v.time}</p>
         <p><b>Location:</b> {v.site || "—"}</p>
-        {(() => {
-          const job = findJob(state, v.jobId);
-          if (!job) return <p><b>Job:</b> Not linked to a job</p>;
-          return (
-            <p><b>Job:</b> {jobLabel(job)}{openJob && <> · <a onClick={() => { onClose(); openJob(job.id); }} style={{ color: "var(--lime)", cursor: "pointer", fontWeight: 600 }}>open ›</a></>}</p>
-          );
-        })()}
         {people && <p><b>Person(s):</b> {people}</p>}
         {v.injuryDetails && <p style={{ marginTop: 8 }}><b>Injury:</b> {v.injuryDetails}</p>}
         <p style={{ marginTop: 8 }}><b>What happened:</b> {v.description}</p>
@@ -1760,7 +1249,9 @@ function IncidentView({ state, setState, rec, onClose, onDelete, openJob, onEdit
           {onEdit && <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => onEdit(v)}>✏️ Edit</button>}
         </div>
       </div>
-      <div className="tm-sheet-actions">
+      <div className="tm-sheet-actions" style={{ flexWrap: "wrap" }}>
+        <button className="tm-btn tm-btn-primary" onClick={doShare}>📤 Share PDF</button>
+        <button className="tm-btn tm-btn-outline" onClick={doPrint}>🖨️ Print</button>
         <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
       </div>
@@ -1781,14 +1272,10 @@ function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSa
   const [hazardDetails, setHazardDetails] = useState(e0.hazardDetails || {}); // { [hazardName]: { control, notes } }
   const [otherHazards, setOtherHazards] = useState(e0.otherHazards || "");
   const [risk, setRisk] = useState(e0.risk || "");
-  // When editing, load existing signers; otherwise pre-seed from the job's assigned crew.
-  const [signers, setSigners] = useState(() => {
-    if (editing && editing.signers) return editing.signers.map((s) => ({ ...s }));
-    return (job?.crewIds || []).map((id) => {
-      const c = findCrew(state, id);
-      return { crewId: id, name: c ? crewName(c) : "", role: c ? c.role : "", signed: false };
-    });
-  });
+  // When editing, load existing signers; otherwise start empty (add via crew chips).
+  const [signers, setSigners] = useState(() =>
+    editing && editing.signers ? editing.signers.map((s) => ({ ...s })) : []
+  );
 
   const toggleHazard = (h) => setChecked((c) => c.includes(h) ? c.filter((x) => x !== h) : [...c, h]);
   const setDetail = (h, patch) => setHazardDetails((d) => ({ ...d, [h]: { ...(d[h] || {}), ...patch } }));
@@ -1823,6 +1310,8 @@ function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSa
       <input className="tm-input" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. 12 Smith Rd, Pukekohe" />
       <label className="tm-label">Date</label>
       <input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <label className="tm-label">Type of Work</label>
+      <input className="tm-input" value={jobType} onChange={(e) => setJobType(e.target.value)} placeholder="e.g. Tree removal, crown reduction" />
       <PeoplePicker state={state} value={lead} onChange={setLead} single label="Team Lead" placeholder="Lead's name…" />
 
       <hr className="tm-hr" />
@@ -1876,7 +1365,7 @@ function HazardForm({ state, setState, toast, jobId, job, editing, onClose, onSa
 
       <hr className="tm-hr" />
       <div className="tm-section-head">Team Sign-Off</div>
-      {!!(job?.crewIds || []).length && <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 10 }}>Assigned crew are pre-loaded below — hand the phone round for each to sign.</p>}
+      {state.crew.length > 0 && <p className="tm-text-mid" style={{ fontSize: 12, marginBottom: 10 }}>Tap a crew member to add them, then hand the phone round for each to sign.</p>}
       {/* Quick-add any crew member not already listed as a signer */}
       {state.crew.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
@@ -1916,73 +1405,8 @@ function HazardView({ state, rec, onClose, onDelete, onEdit }) {
   const details = rec.hazardDetails || {};
   const company = state.settings.companyInfo || {};
 
-  const printSheet = () => {
-    const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-    const nl = (s) => esc(s).replace(/\n/g, "<br>");
-    const rows = (rec.hazards || []).map((h) => {
-      const d = details[h] || {};
-      return `<tr><td class="hz">${esc(h)}</td><td>${nl(d.control) || "—"}</td><td>${nl(d.notes) || ""}</td></tr>`;
-    }).join("");
-    const signers = (rec.signers || []).map((s) =>
-      `<div class="sig"><span>${esc(s.name)} <em>(${esc(s.role) || "Crew"})</em></span><span>${s.signed ? "Signed ✔" : "________________"}</span></div>`
-    ).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Hazard Sheet</title>
-<style>
-  * { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 24px; color: #14210a; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .sub { color: #555; font-size: 12px; margin-bottom: 14px; }
-  .meta { font-size: 13px; margin-bottom: 14px; line-height: 1.6; }
-  .meta b { display: inline-block; min-width: 90px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  th, td { border: 1px solid #bbb; padding: 7px 9px; font-size: 12px; text-align: left; vertical-align: top; }
-  th { background: #e8f0dc; }
-  td.hz { font-weight: bold; width: 30%; }
-  .risk { display: inline-block; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px; }
-  h2 { font-size: 14px; margin: 20px 0 6px; border-bottom: 2px solid #8DC63F; padding-bottom: 3px; }
-  .sig { display: flex; justify-content: space-between; padding: 9px 2px; border-bottom: 1px dashed #ccc; font-size: 13px; }
-  .foot { margin-top: 26px; font-size: 10px; color: #888; text-align: center; }
-</style></head><body>
-  <h1>${esc(company.name || "The Treeman")} — Site Hazard Sheet</h1>
-  <div class="sub">${esc(company.phone || "")} ${company.email ? " · " + esc(company.email) : ""}</div>
-  <div class="meta">
-    <div><b>Site:</b> ${esc(rec.site) || "—"}</div>
-    <div><b>Date:</b> ${esc(rec.date) || "—"}</div>
-    <div><b>Job type:</b> ${esc(rec.jobType) || "—"}</div>
-    <div><b>Team lead:</b> ${esc(rec.lead) || "—"}</div>
-    <div><b>Overall risk:</b> ${esc(riskLabel)}</div>
-  </div>
-  <h2>Identified Hazards &amp; Controls</h2>
-  <table><thead><tr><th>Hazard</th><th>Control measure</th><th>Notes</th></tr></thead>
-  <tbody>${rows || '<tr><td colspan="3">No hazards ticked</td></tr>'}</tbody></table>
-  ${rec.otherHazards ? `<p style="font-size:12px;margin-top:10px"><b>Other hazards:</b> ${esc(rec.otherHazards)}</p>` : ""}
-  <h2>Team Sign-Off</h2>
-  ${signers || '<p style="font-size:12px">No crew recorded</p>'}
-  <div class="foot">Generated by The Treeman Field Ops · ${new Date().toLocaleString("en-NZ")}</div>
-</body></html>`;
-    // Print via a hidden iframe so we never navigate away from the app (iOS-safe).
-    // Using srcdoc (not document.write) makes repeat prints reliable — document.write
-    // into a reused frame can render blank on the 2nd+ attempt on iOS Safari.
-    const existing = document.getElementById("tm-print-frame");
-    if (existing) existing.remove();
-    const iframe = document.createElement("iframe");
-    iframe.id = "tm-print-frame";
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
-    iframe.onload = () => {
-      // Small delay so fonts/layout settle before the print dialog opens.
-      setTimeout(() => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-        } catch (e) { /* ignore */ }
-        // Remove after the dialog has had time to grab the content.
-        setTimeout(() => { const f = document.getElementById("tm-print-frame"); if (f) f.remove(); }, 1000);
-      }, 350);
-    };
-    iframe.srcdoc = html;
-    document.body.appendChild(iframe);
-  };
+  const doShare = async () => { await sharePdf(await buildHazardPdf(rec, company), pdfFilename("hazard", rec)); };
+  const doPrint = async () => { printPdf(await buildHazardPdf(rec, company)); };
 
   return (
     <Sheet open onClose={onClose} title={"⚠️ " + (rec.site || "Hazard sheet")}>
@@ -2007,7 +1431,8 @@ function HazardView({ state, rec, onClose, onDelete, onEdit }) {
         <ul style={{ paddingLeft: 20 }}>{rec.signers.map((s, i) => <li key={i}>{s.name} ({s.role || "Crew"}) — {s.signed ? "SIGNED ✅" : "NOT SIGNED"}</li>)}</ul>
       </div>
       <div className="tm-sheet-actions" style={{ flexWrap: "wrap" }}>
-        <button className="tm-btn tm-btn-primary" onClick={printSheet}>🖨️ Print / PDF</button>
+        <button className="tm-btn tm-btn-primary" onClick={doShare}>📤 Share PDF</button>
+        <button className="tm-btn tm-btn-outline" onClick={doPrint}>🖨️ Print</button>
         {onEdit && <button className="tm-btn tm-btn-outline" onClick={() => onEdit(rec)}>✏️ Edit</button>}
         <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
         <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
@@ -2109,139 +1534,6 @@ function GearPanel({ state, setState, toast, setFabAction }) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  MAINTENANCE PANEL
-// ══════════════════════════════════════════════════════════════
-function MaintenancePanel({ state, setState, toast, confirm, setFabAction }) {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [equip, setEquip] = useState("");
-  const [date, setDate] = useState(today);
-  const [by, setBy] = useState("");
-  const [work, setWork] = useState("");
-  const [nextDue, setNextDue] = useState("");
-  const [status, setStatus] = useState("good");
-
-  const openLog = useCallback(() => {
-    setEditId(null);
-    setEquip(""); setDate(today()); setBy(""); setWork(""); setNextDue(""); setStatus("good");
-    setSheetOpen(true);
-  }, []);
-
-  const openEdit = (m) => {
-    setEditId(m.id || m.ts);
-    setEquip(m.equip || ""); setDate(m.date || today()); setBy(m.by || "");
-    setWork(m.work || ""); setNextDue(m.nextDue || ""); setStatus(m.status || "good");
-    setSheetOpen(true);
-  };
-
-  useEffect(() => {
-    setFabAction({ label: "Log maintenance", onClick: openLog });
-    return () => setFabAction(null);
-  }, [setFabAction, openLog]);
-
-  const save = () => {
-    if (!equip) { toast("⚠️ Select equipment"); return; }
-    if (editId) {
-      setState((st) => ({ ...st, maintenance: st.maintenance.map((m) => (m.id || m.ts) === editId ? { ...m, equip, date, by, work, nextDue, status } : m) }));
-      toast("✅ Maintenance updated");
-    } else {
-      setState((st) => ({ ...st, maintenance: [{ id: uid(), ts: Date.now(), equip, date, by, work, nextDue, status }, ...st.maintenance] }));
-      toast("✅ Maintenance logged");
-    }
-    setSheetOpen(false);
-  };
-
-  const remove = () => {
-    confirm({
-      title: "Delete this maintenance log?", danger: true, confirmLabel: "Delete",
-      onYes: () => {
-        setState((st) => ({ ...st, maintenance: st.maintenance.filter((m) => (m.id || m.ts) !== editId) }));
-        setSheetOpen(false);
-        toast("Maintenance log deleted");
-      },
-    });
-  };
-
-  return (
-    <div className="tm-panel">
-      <img className="tm-section-photo" src="https://thetreeman.co.nz/wp-content/uploads/2021/01/kaxXLGhw-1.jpg" alt="Equipment maintenance" loading="lazy" />
-      <div className="tm-section-head">Equipment Maintenance</div>
-
-      <div className="tm-card">
-        <div className="tm-card-title"><span>📉</span> Equipment Health</div>
-        {state.settings.equipmentList.map((eq) => {
-          const logs = state.maintenance.filter((m) => m.equip === eq).sort((a, b) => b.ts - a.ts);
-          const last = logs[0];
-          const s = (last || {}).status || "unknown";
-          const color = s === "good" ? "var(--lime)" : s === "watch" ? "var(--warn)" : s === "out" ? "var(--danger)" : "var(--border)";
-          const daysSince = last ? Math.floor((Date.now() - last.ts) / 86400000) : 999;
-          const pct = Math.max(10, Math.min(100, 100 - daysSince));
-          return (
-            <div className="tm-maint-item" key={eq}>
-              <div style={{ flex: "0 0 118px", fontSize: 12, fontWeight: 700 }}>{eq}</div>
-              <div style={{ flex: 1 }}>
-                <div className="tm-maint-bar-bg"><div className="tm-maint-bar-fill" style={{ width: pct + "%", background: color }} /></div>
-                <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>
-                  {last ? "Serviced " + new Date(last.ts).toLocaleDateString("en-NZ") : "No record"}
-                </div>
-              </div>
-              <span className={"tm-badge " + (s === "good" ? "tm-badge-green" : s === "watch" ? "tm-badge-amber" : s === "out" ? "tm-badge-red" : "tm-badge-grey")}>
-                {s === "good" ? "✅" : s === "watch" ? "⚠️" : s === "out" ? "🔴" : "—"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="tm-card">
-        <div className="tm-card-title"><span>🔧</span> Service History</div>
-        {!state.maintenance.length
-          ? <p className="tm-text-mid">No maintenance logged yet. Tap + to log a service.</p>
-          : state.maintenance.map((m, i) => (
-            <div className="tm-record-item" key={m.id || i} onClick={() => openEdit(m)} style={{ cursor: "pointer" }}>
-              <div className="tm-record-icon">🔧</div>
-              <div className="tm-record-body">
-                <div className="tm-record-title">{m.equip}</div>
-                <div className="tm-record-meta">{m.date} · By {m.by || "—"}</div>
-                <div className="tm-record-meta" style={{ marginTop: 2 }}>{m.work}</div>
-              </div>
-              <span className={"tm-badge " + (m.status === "good" ? "tm-badge-green" : m.status === "watch" ? "tm-badge-amber" : "tm-badge-red")}>
-                {m.status === "good" ? "✅" : m.status === "watch" ? "⚠️" : "🔴"}
-              </span>
-            </div>
-          ))}
-      </div>
-
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editId ? "🔧 Edit Maintenance" : "🔧 Log Maintenance"}>
-        <label className="tm-label">Equipment</label>
-        <select className="tm-select" value={equip} onChange={(e) => setEquip(e.target.value)}>
-          <option value="">Select...</option>
-          {state.settings.equipmentList.map((e) => <option key={e}>{e}</option>)}
-        </select>
-        <div className="tm-row">
-          <div><label className="tm-label">Date Serviced</label><input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div><label className="tm-label">Next Due</label><input className="tm-input" type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} /></div>
-        </div>
-        <PeoplePicker state={state} value={by} onChange={setBy} single label="Serviced By" placeholder="Name…" />
-        <label className="tm-label">Work Performed</label>
-        <textarea className="tm-textarea" value={work} onChange={(e) => setWork(e.target.value)} placeholder="Inspected / repaired / replaced..." />
-        <label className="tm-label">Status After Service</label>
-        <select className="tm-select" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="good">✅ Good — ready to use</option>
-          <option value="watch">⚠️ Monitor — minor issues</option>
-          <option value="out">🔴 Out of service — do not use</option>
-        </select>
-        <div className="tm-sheet-actions">
-          {editId && <button className="tm-btn tm-btn-danger" onClick={remove}>Delete</button>}
-          <button className="tm-btn tm-btn-outline" onClick={() => setSheetOpen(false)}>Cancel</button>
-          <button className="tm-btn tm-btn-primary" onClick={save}>{editId ? "Save Changes" : "Save"}</button>
-        </div>
-      </Sheet>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
 //  CREW PANEL
 // ══════════════════════════════════════════════════════════════
 function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
@@ -2286,17 +1578,12 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
   };
 
   const remove = (c) => {
-    const jobs = jobsForCrew(state, c.id);
     confirm({
       title: "Remove crew member?",
-      message: jobs.length ? `${crewName(c)} is assigned to ${jobs.length} job(s) and will be unassigned from them.` : `${crewName(c)} will be removed.`,
+      message: `${crewName(c)} will be removed.`,
       danger: true, confirmLabel: "Remove",
       onYes: () => {
-        setState((st) => ({
-          ...st,
-          crew: st.crew.filter((x) => x.id !== c.id),
-          jobs: st.jobs.map((j) => (j.crewIds || []).includes(c.id) ? { ...j, crewIds: j.crewIds.filter((id) => id !== c.id) } : j),
-        }));
+        setState((st) => ({ ...st, crew: st.crew.filter((x) => x.id !== c.id) }));
         setDetailId(null);
         toast("Crew member removed");
       },
@@ -2312,11 +1599,9 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
       if (Array.isArray(v)) return v.some((n) => (n || "").toLowerCase() === fullName.toLowerCase());
       return (v || "").toLowerCase() === fullName.toLowerCase();
     };
-    const myJobs = jobsForCrew(state, detail.id).sort((a, b) => b.ts - a.ts);
     const myIncidents = state.incidents
       .filter((x) => nameMatch(x.peopleInvolved ?? x.personInvolved) || nameMatch(x.reportedBy) || nameMatch(x.witnesses))
       .sort((a, b) => b.ts - a.ts);
-    const myMaint = state.maintenance.filter((m) => nameMatch(m.by)).sort((a, b) => b.ts - a.ts);
     const myGear = state.gearLog.filter((g) => nameMatch(g.crew)).sort((a, b) => b.ts - a.ts);
 
     return (
@@ -2340,57 +1625,25 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
           </div>
         </div>
 
-        <JobPill icon="🌲" title="Jobs" count={myJobs.length + " job" + (myJobs.length === 1 ? "" : "s")}
-          open={crewSection === "jobs"} onToggle={() => setCrewSection(crewSection === "jobs" ? null : "jobs")} noAdd>
-          {!myJobs.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>Not assigned to any jobs yet.</p> : myJobs.map((j) => {
-            const sm = statusMeta(j.status);
-            return (
-              <div className="tm-record-item" key={j.id} onClick={() => openJob(j.id)} style={{ cursor: "pointer" }}>
-                <div className="tm-record-icon">🌲</div>
-                <div className="tm-record-body">
-                  <div className="tm-record-title">{jobLabel(j)}</div>
-                  <div className="tm-record-meta">{j.site || j.client || "—"}</div>
-                  <div style={{ marginTop: 5 }}><span className={"tm-badge " + sm.badge}>{sm.icon} {sm.label}</span></div>
-                </div>
-                <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
-              </div>
-            );
-          })}
-        </JobPill>
-
-        <JobPill icon="🚨" title="Incidents" count={myIncidents.length ? myIncidents.length + " involved" : "None 🌿"}
-          open={crewSection === "incidents"} onToggle={() => setCrewSection(crewSection === "incidents" ? null : "incidents")} noAdd>
+        <Collapsible icon="🚨" title="Incidents" count={myIncidents.length ? myIncidents.length + " involved" : "None 🌿"}
+          open={crewSection === "incidents"} onToggle={() => setCrewSection(crewSection === "incidents" ? null : "incidents")}>
           {!myIncidents.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No incidents involving {fullName.split(" ")[0]}.</p> : myIncidents.map((x) => {
-            const job = findJob(state, x.jobId);
             const sb = x.severity === "high" ? "tm-badge-red" : x.severity === "med" ? "tm-badge-amber" : "tm-badge-green";
             return (
-              <div className="tm-record-item" key={x.id} onClick={() => x.jobId && openJob(x.jobId)} style={{ cursor: x.jobId ? "pointer" : "default" }}>
+              <div className="tm-record-item" key={x.id}>
                 <div className="tm-record-icon">🚨</div>
                 <div className="tm-record-body">
                   <div className="tm-record-title">{x.type}</div>
-                  <div className="tm-record-meta">{x.date} · {job ? jobLabel(job) : "No job"}</div>
+                  <div className="tm-record-meta">{x.date}{x.site ? " · " + x.site : ""}</div>
                   <div style={{ marginTop: 5 }}><span className={"tm-badge " + sb}>{x.severity === "high" ? "🔴 Serious" : x.severity === "med" ? "🟡 Moderate" : "🟢 Minor"}</span></div>
                 </div>
               </div>
             );
           })}
-        </JobPill>
+        </Collapsible>
 
-        <JobPill icon="🔧" title="Maintenance" count={myMaint.length ? myMaint.length + " log" + (myMaint.length === 1 ? "" : "s") : "None"}
-          open={crewSection === "maint"} onToggle={() => setCrewSection(crewSection === "maint" ? null : "maint")} noAdd>
-          {!myMaint.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No maintenance logged by {fullName.split(" ")[0]}.</p> : myMaint.map((m, i) => (
-            <div className="tm-record-item" key={m.ts + "-" + i}>
-              <div className="tm-record-icon">🔧</div>
-              <div className="tm-record-body">
-                <div className="tm-record-title">{m.equip}</div>
-                <div className="tm-record-meta">{m.date}{m.work ? " · " + m.work : ""}</div>
-              </div>
-            </div>
-          ))}
-        </JobPill>
-
-        <JobPill icon="🧤" title="PPE / Gear" count={myGear.length ? myGear.length + " log" + (myGear.length === 1 ? "" : "s") : "None"}
-          open={crewSection === "gear"} onToggle={() => setCrewSection(crewSection === "gear" ? null : "gear")} noAdd>
+        <Collapsible icon="🧤" title="PPE / Gear" count={myGear.length ? myGear.length + " log" + (myGear.length === 1 ? "" : "s") : "None"}
+          open={crewSection === "gear"} onToggle={() => setCrewSection(crewSection === "gear" ? null : "gear")}>
           {!myGear.length ? <p className="tm-text-mid" style={{ padding: "10px 0" }}>No PPE logged for {fullName.split(" ")[0]}.</p> : myGear.map((g, i) => (
             <div className="tm-record-item" key={g.ts + "-" + i}>
               <div className="tm-record-icon">🧤</div>
@@ -2400,7 +1653,7 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
               </div>
             </div>
           ))}
-        </JobPill>
+        </Collapsible>
 
         <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? "👷 Edit Crew Member" : "👷 Add Crew Member"}>
           <CrewFormFields {...{ first, setFirst, last, setLast, role, setRole, quals, setQuals, emerg, setEmerg, save, onClose: () => setSheetOpen(false), editingId }} />
@@ -2420,13 +1673,12 @@ function CrewPanel({ state, setState, toast, confirm, setFabAction, openJob }) {
         {!state.crew.length
           ? <p className="tm-text-mid">No crew members yet — tap + to add the team!</p>
           : state.crew.map((c) => {
-            const jobCount = jobsForCrew(state, c.id).length;
             return (
               <div className="tm-record-item" key={c.id} onClick={() => setDetailId(c.id)} style={{ cursor: "pointer" }}>
                 <div className="tm-crew-avatar">{initials(crewName(c))}</div>
                 <div className="tm-record-body">
                   <div className="tm-record-title">{crewName(c)}</div>
-                  <div className="tm-record-meta">{c.role} · {jobCount} job{jobCount === 1 ? "" : "s"}</div>
+                  <div className="tm-record-meta">{c.role}</div>
                   {c.quals && <div className="tm-record-meta" style={{ marginTop: 2 }}>📜 {c.quals}</div>}
                 </div>
                 <span style={{ color: "var(--text-dim)", alignSelf: "center" }}>›</span>
@@ -2553,143 +1805,14 @@ function ToolboxPanel({ state, setState, toast, setFabAction }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════
-//  QUOTE — form + view (used inside a Job)
-// ══════════════════════════════════════════════════════════════
-function blankLine(services) {
-  return { service: (services[0] || {}).name || "", qty: 1, rate: (services[0] || {}).rate || 0 };
-}
-
-function QuoteForm({ state, setState, toast, jobId, job, onClose, onSaved }) {
-  const services = state.settings.quoteServices;
-  const gstRate = state.settings.companyInfo.gstRate || 15;
-
-  const [validDays, setValidDays] = useState(30);
-  const [date, setDate] = useState(today);
-  const [lines, setLines] = useState([blankLine(services)]);
-  const [notes, setNotes] = useState("Price includes all labour, equipment, and green waste removal unless otherwise stated.");
-
-  const addLine = () => setLines((l) => [...l, blankLine(services)]);
-  const removeLine = (i) => setLines((l) => l.filter((_, idx) => idx !== i));
-  const updateLine = (i, patch) => setLines((l) => l.map((ln, idx) => idx === i ? { ...ln, ...patch } : ln));
-  const onServiceChange = (i, name) => {
-    const svc = services.find((s) => s.name === name);
-    updateLine(i, { service: name, rate: svc ? svc.rate : 0 });
-  };
-
-  const subtotal = lines.reduce((sum, l) => sum + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
-  const gst = subtotal * (gstRate / 100);
-  const total = subtotal + gst;
-
-  const save = () => {
-    const record = {
-      id: uid(), ts: Date.now(), jobId,
-      client: job?.client || "", siteAddr: job?.site || "", phone: job?.phone || "", email: "",
-      date, validDays, lines, notes, subtotal, gst, gstRate, total, status: "draft",
-    };
-    setState((st) => ({ ...st, quotes: [record, ...st.quotes] }));
-    toast("✅ Quote saved");
-    onSaved();
-  };
-
-  return (
-    <Sheet open onClose={onClose} title="💷 New Quote">
-      <p className="tm-text-mid" style={{ fontSize: 13, marginBottom: 12 }}>For <b>{jobLabel(job)}</b>{job?.site ? " · " + job.site : ""}</p>
-      <div className="tm-row">
-        <div><label className="tm-label">Quote Date</label><input className="tm-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        <div><label className="tm-label">Valid (days)</label><input className="tm-input" type="number" value={validDays} onChange={(e) => setValidDays(e.target.value)} /></div>
-      </div>
-
-      <hr className="tm-hr" />
-      <div className="tm-section-head">Line Items</div>
-      {lines.map((l, i) => (
-        <div className="tm-quote-line" key={i}>
-          <select className="tm-select" value={l.service} onChange={(e) => onServiceChange(i, e.target.value)}>
-            {services.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-          </select>
-          <div className="tm-quote-line-grid">
-            <div><label className="tm-label">Qty</label><input className="tm-input" type="number" min="0" value={l.qty} onChange={(e) => updateLine(i, { qty: e.target.value })} /></div>
-            <div><label className="tm-label">Rate $</label><input className="tm-input" type="number" min="0" step="0.01" value={l.rate} onChange={(e) => updateLine(i, { rate: e.target.value })} /></div>
-          </div>
-          <div className="tm-flex-between">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{fmtMoney((Number(l.qty) || 0) * (Number(l.rate) || 0))}</span>
-            <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => removeLine(i)}>✕ Remove</button>
-          </div>
-        </div>
-      ))}
-      <button className="tm-btn tm-btn-outline tm-btn-sm tm-btn-block" onClick={addLine}>+ Add Line Item</button>
-
-      <div className="tm-quote-totals">
-        <div className="tm-quote-totals-row"><span>Subtotal</span><span>{fmtMoney(subtotal)}</span></div>
-        <div className="tm-quote-totals-row"><span>GST ({gstRate}%)</span><span>{fmtMoney(gst)}</span></div>
-        <div className="tm-quote-totals-row grand"><span>Total</span><span>{fmtMoney(total)}</span></div>
-      </div>
-
-      <label className="tm-label" style={{ marginTop: 14 }}>Notes / Terms</label>
-      <textarea className="tm-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} />
-
-      <div className="tm-sheet-actions">
-        <button className="tm-btn tm-btn-outline" onClick={onClose}>Cancel</button>
-        <button className="tm-btn tm-btn-primary" onClick={save}>✅ Save Quote</button>
-      </div>
-    </Sheet>
-  );
-}
-
-function QuoteView({ state, setState, rec, onClose, onDelete }) {
-  const [v, setV] = useState(rec);
-  const ci = state.settings.companyInfo;
-  const setStatus = (status) => {
-    setState((st) => ({ ...st, quotes: st.quotes.map((q) => q.id === v.id ? { ...q, status } : q) }));
-    setV((p) => ({ ...p, status }));
-  };
-  return (
-    <Sheet open onClose={onClose} title={"💷 " + (v.client || "Quote")}>
-      <div style={{ fontSize: 14, lineHeight: 1.7 }}>
-        <p style={{ fontSize: 12, color: "var(--text-mid)" }}>
-          <b>{ci.name}</b><br />{ci.address}<br />{ci.phone} · {ci.email}
-          {ci.gstNumber && <><br />GST: {ci.gstNumber}</>}
-        </p>
-        <hr className="tm-hr" />
-        <p><b>Site:</b> {v.siteAddr || "—"}</p>
-        <p><b>Contact:</b> {v.phone || "—"} {v.email && "· " + v.email}</p>
-        <p><b>Date:</b> {v.date} · valid {v.validDays} days</p>
-        <hr className="tm-hr" />
-        {v.lines.map((l, i) => (
-          <div className="tm-flex-between" style={{ padding: "5px 0", fontSize: 13 }} key={i}>
-            <span>{l.service} × {l.qty}</span>
-            <span style={{ fontWeight: 700 }}>{fmtMoney((Number(l.qty) || 0) * (Number(l.rate) || 0))}</span>
-          </div>
-        ))}
-        <div className="tm-quote-totals">
-          <div className="tm-quote-totals-row"><span>Subtotal</span><span>{fmtMoney(v.subtotal)}</span></div>
-          <div className="tm-quote-totals-row"><span>GST ({v.gstRate}%)</span><span>{fmtMoney(v.gst)}</span></div>
-          <div className="tm-quote-totals-row grand"><span>Total</span><span>{fmtMoney(v.total)}</span></div>
-        </div>
-        {v.notes && <p style={{ marginTop: 10, fontSize: 12, color: "var(--text-mid)" }}>{v.notes}</p>}
-        <div className="tm-flex" style={{ gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-          <button className="tm-btn tm-btn-outline tm-btn-sm" onClick={() => setStatus("sent")}>📤 Sent</button>
-          <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={() => setStatus("accepted")}>✅ Accepted</button>
-          <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => setStatus("declined")}>❌ Declined</button>
-        </div>
-      </div>
-      <div className="tm-sheet-actions">
-        <button className="tm-btn tm-btn-danger" onClick={onDelete}>Delete</button>
-        <button className="tm-btn tm-btn-outline" onClick={onClose}>Close</button>
-      </div>
-    </Sheet>
-  );
-}
-
 
 // ══════════════════════════════════════════════════════════════
 //  SETTINGS PANEL
 // ══════════════════════════════════════════════════════════════
 function NavSettings({ settings, updateSettings, toast }) {
-  const DEF = ["dashboard", "crew", "jobs", "toolbox", "more"];
+  const DEF = ["dashboard", "hazard", "incidents", "crew", "more"];
   const slots = (settings.navSlots && settings.navSlots.length === 5) ? settings.navSlots : DEF;
-  // options: any NAV_SECTION plus Jobs
-  const options = [{ id: "jobs", icon: "🌲", label: "Jobs" }, ...NAV_SECTIONS];
+  const options = NAV_SECTIONS;
   const metaOf = (id) => options.find((o) => o.id === id) || { icon: "•", label: id };
   const setSlot = (i, id) => {
     const next = [...slots];
@@ -2739,9 +1862,7 @@ function SettingsPanel({ settings, updateSettings, toast }) {
     { id: "controls", label: "Control Measures" },
     { id: "incidents", label: "Incident Types" },
     { id: "gear", label: "Gear / PPE" },
-    { id: "equipment", label: "Equipment" },
     { id: "talks", label: "Toolbox Topics" },
-    { id: "services", label: "Quote Services" },
     { id: "company", label: "Company" },
   ];
 
@@ -2783,17 +1904,8 @@ function SettingsPanel({ settings, updateSettings, toast }) {
         placeholder="e.g. 🪜 Fall from height"
         toast={toast}
       />}
-      {section === "equipment" && <ListEditor
-        title="🔧 Maintenance — Equipment List"
-        sub="All plant, tools, and vehicles tracked in the Maintenance tab."
-        list={settings.equipmentList}
-        onChange={(l) => updateSettings({ equipmentList: l })}
-        placeholder="e.g. Wood Chipper — Bandit 150XP"
-        toast={toast}
-      />}
       {section === "gear" && <GearItemsSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
       {section === "talks" && <TalkTopicsSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
-      {section === "services" && <QuoteServicesSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
       {section === "company" && <CompanyInfoSettings settings={settings} updateSettings={updateSettings} toast={toast} />}
     </div>
   );
@@ -2895,40 +2007,6 @@ function TalkTopicsSettings({ settings, updateSettings, toast }) {
         </div>
         <textarea className="tm-textarea" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="Talking points, separated by sentences..." />
         <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={add}>+ Add Topic</button>
-      </div>
-    </div>
-  );
-}
-
-function QuoteServicesSettings({ settings, updateSettings, toast }) {
-  const [name, setName] = useState("");
-  const [rate, setRate] = useState("");
-  const list = settings.quoteServices;
-
-  const add = () => {
-    if (!name.trim()) return;
-    updateSettings({ quoteServices: [...list, { name: name.trim(), rate: Number(rate) || 0 }] });
-    setName(""); setRate("");
-    toast("✅ Service added");
-  };
-  const remove = (i) => updateSettings({ quoteServices: list.filter((_, idx) => idx !== i) });
-  const change = (i, patch) => updateSettings({ quoteServices: list.map((x, idx) => idx === i ? { ...x, ...patch } : x) });
-
-  return (
-    <div className="tm-card">
-      <div className="tm-card-title"><span>💷</span> Quote Services & Default Rates</div>
-      <p className="tm-text-mid" style={{ marginBottom: 12, fontSize: 12 }}>Default rate auto-fills when building a quote (editable per quote).</p>
-      {list.map((s, i) => (
-        <div className="tm-editable-row" key={i}>
-          <input className="tm-input" style={{ flex: 1 }} value={s.name} onChange={(e) => change(i, { name: e.target.value })} />
-          <input className="tm-input" style={{ width: 92 }} type="number" step="0.01" value={s.rate} onChange={(e) => change(i, { rate: Number(e.target.value) })} placeholder="$" />
-          <button className="tm-btn tm-btn-danger tm-btn-sm" onClick={() => remove(i)}>✕</button>
-        </div>
-      ))}
-      <div className="tm-flex tm-mt-8" style={{ gap: 8 }}>
-        <input className="tm-input" style={{ marginBottom: 0, flex: 1 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Root Barrier Install" onKeyDown={(e) => e.key === "Enter" && add()} />
-        <input className="tm-input" style={{ marginBottom: 0, width: 92 }} type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="$" />
-        <button className="tm-btn tm-btn-primary tm-btn-sm" onClick={add}>+</button>
       </div>
     </div>
   );
